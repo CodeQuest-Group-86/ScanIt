@@ -1,112 +1,205 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useAuthStore } from '@/stores/auth';
+import { useProductsStore } from '@/stores/products';
+import { useScanStore } from '@/stores/scan';
+import { useSavedStore } from '@/stores/saved';
+import ProductCard from '@/components/ProductCard';
+import Card from '@/components/Card';
+import Button from '@/components/Button';
+import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
+import { formatPrice, formatDiscount } from '@/utils/format';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function HomeScreen() {
+  const { user } = useAuthStore();
+  const { history } = useScanStore();
+  const { savedProducts, save, remove, isSaved } = useSavedStore();
+  const { priceAlerts, loadPriceAlerts, unreadNotificationsCount, loadNotifications } = useProductsStore();
 
-export default function TabTwoScreen() {
+  useEffect(() => {
+    loadPriceAlerts();
+    loadNotifications();
+  }, []);
+
+  const greeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const firstName = user?.name.split(' ')[0] ?? 'there';
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
-        />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{greeting()},</Text>
+            <Text style={styles.name}>{firstName}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => router.push('/notifications' as never)}
+            style={styles.notifBtn}>
+            <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+            {unreadNotificationsCount > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>{unreadNotificationsCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Scan CTA */}
+        <TouchableOpacity
+          style={styles.scanCta}
+          onPress={() => router.push('/(tabs)/scan')}
+          activeOpacity={0.88}>
+          <View>
+            <Text style={styles.scanCtaTitle}>Scan a Product</Text>
+            <Text style={styles.scanCtaSubtitle}>Point camera at any item</Text>
+          </View>
+          <View style={styles.scanIconWrap}>
+            <Ionicons name="scan-outline" size={32} color={Colors.white} />
+          </View>
+        </TouchableOpacity>
+
+        {/* Price Drop Alerts */}
+        {priceAlerts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Price Drop Alerts</Text>
+            {priceAlerts.map(alert => (
+              <Card key={alert.id} style={styles.alertCard}>
+                <View style={styles.alertRow}>
+                  <View style={styles.alertLeft}>
+                    <Ionicons name="trending-down" size={20} color={Colors.success} />
+                    <View style={styles.alertText}>
+                      <Text style={styles.alertProduct} numberOfLines={1}>{alert.productName}</Text>
+                      <Text style={styles.alertPrices}>
+                        <Text style={styles.oldPrice}>{formatPrice(alert.oldPrice)}</Text>
+                        {'  '}
+                        <Text style={styles.newPrice}>{formatPrice(alert.newPrice)}</Text>
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.dropBadge}>
+                    <Text style={styles.dropText}>{formatDiscount(alert.dropPercent)}</Text>
+                  </View>
+                </View>
+              </Card>
+            ))}
+          </View>
+        )}
+
+        {/* Recent Scans */}
+        {history.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recent Scans</Text>
+              <TouchableOpacity onPress={() => router.push('/scan-history' as never)}>
+                <Text style={styles.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            {history.slice(0, 2).map(scan => (
+              <ProductCard
+                key={scan.id}
+                product={scan.product}
+                onPress={() => {
+                  useProductsStore.getState().selectProduct(scan.product);
+                  router.push('/product-detail' as never);
+                }}
+                onSave={() => isSaved(scan.product.id) ? remove(scan.product.id) : save(scan.product)}
+                isSaved={isSaved(scan.product.id)}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Saved highlights */}
+        {savedProducts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Saved Products</Text>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/saved')}>
+                <Text style={styles.seeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            {savedProducts.slice(0, 2).map(p => (
+              <ProductCard
+                key={p.id}
+                product={p}
+                onPress={() => {
+                  useProductsStore.getState().selectProduct(p);
+                  router.push('/product-detail' as never);
+                }}
+                onSave={() => remove(p.id)}
+                isSaved
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Empty state */}
+        {history.length === 0 && savedProducts.length === 0 && (
+          <View style={styles.emptySection}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="scan-outline" size={48} color={Colors.textSecondary} />
+            </View>
+            <Text style={styles.emptyTitle}>Ready to scan?</Text>
+            <Text style={styles.emptyBody}>
+              Scan your first product to see price comparisons, authenticity checks, and more.
+            </Text>
+            <Button label="Scan Now" onPress={() => router.push('/(tabs)/scan')} style={styles.emptyBtn} />
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
+  safe: { flex: 1, backgroundColor: Colors.surface },
+  scroll: { padding: Spacing.lg, paddingBottom: Spacing.xxxl },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xl },
+  greeting: { fontSize: Typography.sizes.md, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
+  name: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text },
+  notifBtn: { position: 'relative', padding: Spacing.sm },
+  notifBadge: { position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.danger, alignItems: 'center', justifyContent: 'center' },
+  notifBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '700' },
+  scanCta: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radii.xl,
+    padding: Spacing.xl,
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xl,
+    ...Shadows.md,
   },
+  scanCtaTitle: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.white, marginBottom: 2 },
+  scanCtaSubtitle: { fontSize: Typography.sizes.sm, color: Colors.white + 'CC' },
+  scanIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.white + '20', alignItems: 'center', justifyContent: 'center' },
+  section: { marginBottom: Spacing.xl },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
+  sectionTitle: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.text, marginBottom: Spacing.md },
+  seeAll: { fontSize: Typography.sizes.sm, color: Colors.primary, fontWeight: Typography.weights.medium },
+  alertCard: { marginBottom: Spacing.sm },
+  alertRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  alertLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  alertText: { flex: 1 },
+  alertProduct: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.text },
+  alertPrices: { fontSize: Typography.sizes.sm, marginTop: 2 },
+  oldPrice: { color: Colors.textSecondary, textDecorationLine: 'line-through' },
+  newPrice: { color: Colors.primary, fontWeight: Typography.weights.bold },
+  dropBadge: { backgroundColor: Colors.success + '20', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
+  dropText: { color: Colors.success, fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold },
+  emptySection: { alignItems: 'center', paddingVertical: Spacing.section, gap: Spacing.md },
+  emptyIconWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.text },
+  emptyBody: { fontSize: Typography.sizes.md, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  emptyBtn: { marginTop: Spacing.sm },
 });
