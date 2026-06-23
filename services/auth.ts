@@ -1,82 +1,66 @@
+import { api } from '@/utils/api';
 import type { ApiResponse, AuthTokens, LoginPayload, SignUpPayload, User } from '@/types';
 
-const MOCK_USERS: User[] = [
-  {
-    id: 'u1',
-    name: 'Ama Mensah',
-    email: 'ama.m@scanit.app',
-    role: 'consumer',
-    scansCount: 47,
-    savedCount: 12,
-    totalSaved: 84.5,
-    createdAt: '2024-01-15',
-  },
-  {
-    id: 'u2',
-    name: 'Kofi Asante',
-    email: 'kofi@scanit.app',
-    role: 'seller',
-    scansCount: 120,
-    savedCount: 35,
-    totalSaved: 320.0,
-    createdAt: '2024-02-20',
-  },
-];
+interface BackendAuthResponse {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
 
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
-
-function makeTokens(): AuthTokens {
-  return {
-    accessToken: `mock_access_${Date.now()}`,
-    refreshToken: `mock_refresh_${Date.now()}`,
-    expiresAt: Date.now() + 60 * 60 * 1000,
-  };
+function mapTokens(d: BackendAuthResponse): AuthTokens {
+  return { accessToken: d.accessToken, refreshToken: d.refreshToken, expiresAt: d.expiresAt };
 }
 
 export const authService = {
   async login(payload: LoginPayload): Promise<ApiResponse<{ user: User; tokens: AuthTokens }>> {
-    await delay(800);
-    const user = MOCK_USERS.find(u => u.email === payload.email);
-    if (!user || payload.password.length < 6) {
-      return { success: false, message: 'Invalid email or password', data: null as never };
+    try {
+      const data = await api.post<BackendAuthResponse>(
+        '/auth/sign-in',
+        { email: payload.email, password: payload.password },
+        { skipAuth: true }
+      );
+      return { success: true, data: { user: data.user, tokens: mapTokens(data) } };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Login failed', data: null as never };
     }
-    return { success: true, data: { user, tokens: makeTokens() } };
   },
 
   async signUp(payload: SignUpPayload): Promise<ApiResponse<{ user: User; tokens: AuthTokens }>> {
-    await delay(1000);
-    const existing = MOCK_USERS.find(u => u.email === payload.email);
-    if (existing) {
-      return { success: false, message: 'An account with this email already exists', data: null as never };
+    try {
+      const data = await api.post<BackendAuthResponse>(
+        '/auth/sign-up',
+        { name: payload.name, email: payload.email, password: payload.password, role: payload.role },
+        { skipAuth: true }
+      );
+      return { success: true, data: { user: data.user, tokens: mapTokens(data) } };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Sign up failed', data: null as never };
     }
-    const newUser: User = {
-      id: `u${Date.now()}`,
-      name: payload.name,
-      email: payload.email,
-      role: payload.role,
-      scansCount: 0,
-      savedCount: 0,
-      totalSaved: 0,
-      createdAt: new Date().toISOString(),
-    };
-    MOCK_USERS.push(newUser);
-    return { success: true, data: { user: newUser, tokens: makeTokens() } };
   },
 
   async forgotPassword(email: string): Promise<ApiResponse<null>> {
-    await delay(600);
-    return { success: true, message: 'Reset link sent to your email', data: null };
+    try {
+      await api.post('/auth/forgot-password', { email }, { skipAuth: true });
+    } catch { /* always show positive message */ }
+    return { success: true, message: 'If that email exists, a reset link has been sent.', data: null };
   },
 
   async refreshToken(refreshToken: string): Promise<ApiResponse<AuthTokens>> {
-    await delay(300);
-    return { success: true, data: makeTokens() };
+    try {
+      const data = await api.post<BackendAuthResponse>('/auth/refresh-token', { refreshToken }, { skipAuth: true });
+      return { success: true, data: mapTokens(data) };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Token refresh failed', data: null as never };
+    }
   },
 
-  async getProfile(userId: string): Promise<ApiResponse<User>> {
-    await delay(400);
-    const user = MOCK_USERS.find(u => u.id === userId);
-    if (!user) return { success: false, message: 'User not found', data: null as never };
-    return { success: true, data: user };
+  async getProfile(): Promise<ApiResponse<User>> {
+    try {
+      const user = await api.get<User>('/auth/me');
+      return { success: true, data: user };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Could not load profile', data: null as never };
+    }
   },
 };

@@ -1,38 +1,33 @@
+import { api } from '@/utils/api';
+import { aiService } from './ai';
 import type { ApiResponse, ScanResult } from '@/types';
-import { MOCK_PRODUCTS } from './products';
-
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 export const scanService = {
   async analyzeImage(imageUri: string): Promise<ApiResponse<ScanResult>> {
-    await delay(2200);
+    // Run backend product lookup and AI analysis in parallel
+    const [backendResult, aiAnalysis] = await Promise.all([
+      api.post<ScanResult>('/scans/analyze', { imageUri }),
+      aiService.analyzeImage(imageUri),
+    ]);
 
-    const randomProduct = MOCK_PRODUCTS[Math.floor(Math.random() * MOCK_PRODUCTS.length)];
-    const confidence = Math.floor(Math.random() * 15) + 84;
+    const authScore = aiAnalysis.authenticity.confidence;
+    const authenticityStatus =
+      authScore >= 80 ? 'authentic' :
+      authScore >= 55 ? 'suspicious' : 'counterfeit';
 
-    const result: ScanResult = {
-      id: `scan_${Date.now()}`,
-      product: randomProduct,
-      confidence,
-      scannedAt: new Date().toISOString(),
-      authenticityStatus: randomProduct.authenticity,
-      imageUri,
+    return {
+      success: true,
+      data: {
+        ...backendResult,
+        aiAnalysis,
+        confidence: aiAnalysis.overallConfidence,
+        authenticityStatus: backendResult.authenticityStatus ?? authenticityStatus,
+      },
     };
-
-    return { success: true, data: result };
   },
 
-  async getScanHistory(userId: string): Promise<ApiResponse<ScanResult[]>> {
-    await delay(500);
-
-    const history: ScanResult[] = MOCK_PRODUCTS.slice(0, 3).map((p, i) => ({
-      id: `scan_hist_${i}`,
-      product: p,
-      confidence: 92 - i * 3,
-      scannedAt: new Date(Date.now() - i * 86400000).toISOString(),
-      authenticityStatus: p.authenticity,
-    }));
-
-    return { success: true, data: history };
+  async getScanHistory(_userId: string): Promise<ApiResponse<ScanResult[]>> {
+    const data = await api.get<ScanResult[]>('/scans/history');
+    return { success: true, data };
   },
 };

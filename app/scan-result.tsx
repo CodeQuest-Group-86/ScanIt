@@ -8,9 +8,88 @@ import { useSavedStore } from '@/stores/saved';
 import { AuthenticityBadge } from '@/components/Badge';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
 import { formatPrice, formatConfidence } from '@/utils/format';
+import type { AIAnalysisResult, AIModelResult } from '@/types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.72;
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.82;
+
+// ─── AI model icon map ───────────────────────────────────────────────────────
+const MODEL_ICONS: Record<string, string> = {
+  'HuggingFace Vision': 'eye-outline',
+  'TensorFlow Lite': 'hardware-chip-outline',
+  'MobileNet': 'phone-portrait-outline',
+  'CLIP': 'images-outline',
+  'ResNet-50': 'shield-checkmark-outline',
+  'BERT': 'chatbubble-ellipses-outline',
+};
+
+const MODEL_COLORS: Record<string, string> = {
+  'HuggingFace Vision': '#FF9000',
+  'TensorFlow Lite': '#FF6F00',
+  'MobileNet': '#00897B',
+  'CLIP': '#7B1FA2',
+  'ResNet-50': '#D32F2F',
+  'BERT': '#1565C0',
+};
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function ConfidenceBar({ value, color }: { value: number; color: string }) {
+  const width = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(width, { toValue: value, duration: 600, useNativeDriver: false, delay: 200 }).start();
+  }, [value]);
+  return (
+    <View style={barStyles.track}>
+      <Animated.View
+        style={[
+          barStyles.fill,
+          {
+            backgroundColor: color,
+            width: width.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+const barStyles = StyleSheet.create({
+  track: { height: 6, backgroundColor: Colors.border, borderRadius: 3, flex: 1 },
+  fill: { height: 6, borderRadius: 3 },
+});
+
+function ModelRow({ result }: { result: AIModelResult }) {
+  const icon = MODEL_ICONS[result.model] ?? 'analytics-outline';
+  const color = MODEL_COLORS[result.model] ?? Colors.accent;
+  return (
+    <View style={modelStyles.row}>
+      <View style={[modelStyles.iconBox, { backgroundColor: color + '18' }]}>
+        <Ionicons name={icon as any} size={16} color={color} />
+      </View>
+      <View style={modelStyles.info}>
+        <View style={modelStyles.labelRow}>
+          <Text style={modelStyles.modelName}>{result.model}</Text>
+          <Text style={[modelStyles.pct, { color }]}>{result.confidence}%</Text>
+        </View>
+        <ConfidenceBar value={result.confidence} color={color} />
+        <Text style={modelStyles.label}>{result.label}</Text>
+      </View>
+    </View>
+  );
+}
+
+const modelStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.md },
+  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  info: { flex: 1, gap: 4 },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modelName: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold, color: Colors.text },
+  pct: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold },
+  label: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
+});
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ScanResultScreen() {
   const { currentResult, clearResult } = useScanStore();
@@ -61,22 +140,17 @@ export default function ScanResultScreen() {
     );
   }
 
-  const { product, confidence, authenticityStatus } = currentResult;
+  const { product, confidence, authenticityStatus, aiAnalysis } = currentResult;
   const bestPrice = product.sellers[0] ? product.price * 0.85 : product.price;
   const saved = isSaved(product.id);
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      {/* Background overlay */}
-      <Animated.View
-        style={[styles.overlay, { opacity: bgAnim }]}
-        pointerEvents="auto">
+      <Animated.View style={[styles.overlay, { opacity: bgAnim }]} pointerEvents="auto">
         <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleClose} />
       </Animated.View>
 
-      {/* Bottom sheet */}
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-        {/* Handle */}
         <View style={styles.handle} />
 
         {/* Detection badge */}
@@ -104,9 +178,7 @@ export default function ScanResultScreen() {
               <View style={styles.statusRow}>
                 <AuthenticityBadge status={authenticityStatus} />
                 {product.sellers.length > 1 && (
-                  <TouchableOpacity
-                    style={styles.altChip}
-                    onPress={handleRecommendations}>
+                  <TouchableOpacity style={styles.altChip} onPress={handleRecommendations}>
                     <Text style={styles.altChipText}>{product.sellers.length} alternatives</Text>
                   </TouchableOpacity>
                 )}
@@ -114,7 +186,7 @@ export default function ScanResultScreen() {
             </View>
           </View>
 
-          {/* Warning for suspicious/counterfeit */}
+          {/* Warning */}
           {authenticityStatus !== 'authentic' && (
             <View style={[styles.warningBox, authenticityStatus === 'counterfeit' && styles.dangerBox]}>
               <Ionicons
@@ -129,6 +201,9 @@ export default function ScanResultScreen() {
               </Text>
             </View>
           )}
+
+          {/* ── AI Analysis Breakdown ── */}
+          {aiAnalysis && <AIBreakdown analysis={aiAnalysis} />}
 
           {/* Price comparison */}
           <View style={styles.priceCard}>
@@ -154,6 +229,60 @@ export default function ScanResultScreen() {
     </View>
   );
 }
+
+// ─── AI Breakdown panel ──────────────────────────────────────────────────────
+
+function AIBreakdown({ analysis }: { analysis: AIAnalysisResult }) {
+  return (
+    <View style={aiStyles.card}>
+      <View style={aiStyles.header}>
+        <Ionicons name="analytics-outline" size={16} color={Colors.accent} />
+        <Text style={aiStyles.title}>AI Analysis Breakdown</Text>
+        <View style={aiStyles.overallBadge}>
+          <Text style={aiStyles.overallText}>{analysis.overallConfidence}% overall</Text>
+        </View>
+      </View>
+      <ModelRow result={analysis.recognition} />
+      <ModelRow result={analysis.similarity} />
+      <ModelRow result={analysis.authenticity} />
+    </View>
+  );
+}
+
+const aiStyles = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radii.card,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  title: {
+    flex: 1,
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+  },
+  overallBadge: {
+    backgroundColor: Colors.accent + '20',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+  },
+  overallText: {
+    fontSize: Typography.sizes.xs,
+    fontWeight: Typography.weights.bold,
+    color: Colors.accent,
+  },
+});
+
+// ─── Main styles ─────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },

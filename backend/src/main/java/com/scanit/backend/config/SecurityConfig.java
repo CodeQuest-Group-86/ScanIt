@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public auth endpoints
                         .requestMatchers("/auth/**").permitAll()
+                        // Health check (Railway / Docker)
+                        .requestMatchers("/actuator/health").permitAll()
                         // H2 console (dev only)
                         .requestMatchers("/h2-console/**").permitAll()
                         // Public read on products & sellers

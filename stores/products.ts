@@ -2,9 +2,12 @@ import { create } from 'zustand';
 import type { Product, Recommendation, Notification, PriceAlert } from '@/types';
 import { productService } from '@/services/products';
 
+type ScoredProduct = Product & { semanticScore?: number };
+
 interface ProductsState {
   products: Product[];
-  searchResults: Product[];
+  searchResults: ScoredProduct[];
+  semanticResults: ScoredProduct[];
   recommendations: Recommendation[];
   notifications: Notification[];
   priceAlerts: PriceAlert[];
@@ -12,19 +15,23 @@ interface ProductsState {
   searchQuery: string;
   selectedCategory: string;
   isLoading: boolean;
+  isSemanticMode: boolean;
   error: string | null;
+  unreadNotificationsCount: number;
   search: (query: string, category?: string) => Promise<void>;
+  semanticSearch: (query: string, category?: string) => Promise<void>;
   setCategory: (category: string) => void;
+  setSemanticMode: (enabled: boolean) => void;
   selectProduct: (product: Product | null) => void;
   loadRecommendations: (productId: string) => Promise<void>;
   loadNotifications: () => Promise<void>;
   loadPriceAlerts: () => Promise<void>;
-  unreadNotificationsCount: number;
 }
 
 export const useProductsStore = create<ProductsState>((set, get) => ({
   products: [],
   searchResults: [],
+  semanticResults: [],
   recommendations: [],
   notifications: [],
   priceAlerts: [],
@@ -32,6 +39,7 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   searchQuery: '',
   selectedCategory: 'All',
   isLoading: false,
+  isSemanticMode: false,
   error: null,
   unreadNotificationsCount: 0,
 
@@ -46,10 +54,28 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     }
   },
 
+  semanticSearch: async (query, category) => {
+    const cat = category ?? get().selectedCategory;
+    set({ isLoading: true, error: null, searchQuery: query });
+    const res = await productService.semanticSearch(query, cat);
+    if (res.success) {
+      set({ searchResults: res.data, semanticResults: res.data, isLoading: false });
+    } else {
+      set({ isLoading: false, error: res.message ?? 'Semantic search failed' });
+    }
+  },
+
   setCategory: (category) => {
     set({ selectedCategory: category });
-    get().search(get().searchQuery, category);
+    const { searchQuery, isSemanticMode } = get();
+    if (isSemanticMode) {
+      get().semanticSearch(searchQuery, category);
+    } else {
+      get().search(searchQuery, category);
+    }
   },
+
+  setSemanticMode: (enabled) => set({ isSemanticMode: enabled }),
 
   selectProduct: (product) => set({ selectedProduct: product }),
 

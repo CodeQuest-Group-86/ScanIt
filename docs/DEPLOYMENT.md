@@ -1,165 +1,200 @@
 # ScanIt — Deployment Guide
 
-This guide covers deploying the ScanIt backend to production using **Railway** (recommended for beginners) or any cloud platform that runs Docker/JAR.
+Goal: anyone with the Expo app can create an account and use the real backend.
 
 ---
 
-## Option A: Deploy to Railway (Recommended)
+## Architecture
 
-Railway auto-detects Spring Boot projects and provisions PostgreSQL.
+```
+Phone (Expo Go / standalone APK)
+        │  HTTPS
+        ▼
+Railway — Spring Boot API   ←→   Railway PostgreSQL
+        │
+        └── /api/v1/auth/sign-up   ← public registration
+            /api/v1/auth/sign-in
+            /api/v1/products
+            /api/v1/scans/analyze
+            ...
+```
 
-### Step 1 — Create a Railway project
+Railway gives you a public HTTPS URL like `https://scanit-backend.up.railway.app`.  
+You paste that into the mobile app's `.env.local` and every user on any phone can register and use the real backend.
 
-1. Go to [railway.app](https://railway.app) and sign in
-2. Click **New Project → Deploy from GitHub**
-3. Select the `CodeQuest-Group-86/ScanIt` repository
-4. Set the **Root Directory** to `backend`
+---
 
-### Step 2 — Add a PostgreSQL database
+## Step 1 — Push the code to GitHub
 
-1. In your Railway project, click **+ New**
-2. Select **Database → PostgreSQL**
-3. Railway will inject `DATABASE_URL` into your service automatically
+```bash
+git init          # if not already a git repo
+git add .
+git commit -m "initial"
+gh repo create scanit --public --source=. --push
+# or: git remote add origin https://github.com/YOUR_NAME/scanit.git && git push -u origin main
+```
 
-### Step 3 — Set environment variables
+---
 
-In your Railway service, go to **Variables** and add:
+## Step 2 — Deploy PostgreSQL on Railway
+
+1. Go to [railway.app](https://railway.app) → **New Project**
+2. Click **Add a service → Database → PostgreSQL**
+3. Railway creates the DB instantly. Click it and copy the **DATABASE_URL** from the Variables tab — looks like:
+   ```
+   postgresql://postgres:abc123@containers-us-west-99.railway.app:5432/railway
+   ```
+4. Note also `PGUSER`, `PGPASSWORD`, `PGDATABASE` from that same tab.
+
+---
+
+## Step 3 — Deploy the Spring Boot backend on Railway
+
+1. In the same Railway project, click **Add a service → GitHub Repo**
+2. Select your `scanit` repo
+3. Railway auto-detects the `backend/Dockerfile` — confirm it
+4. Go to the service **Variables** tab and add these:
 
 | Variable | Value |
-|----------|-------|
+|---|---|
 | `SPRING_PROFILES_ACTIVE` | `prod` |
-| `DATABASE_URL` | *(set automatically by Railway)* |
-| `DATABASE_USERNAME` | *(set automatically by Railway)* |
-| `DATABASE_PASSWORD` | *(set automatically by Railway)* |
-| `JWT_SECRET` | *(generate below)* |
-| `MAIL_HOST` | `smtp.gmail.com` |
+| `DATABASE_URL` | `jdbc:postgresql://HOST:PORT/DBNAME` (convert from the Postgres URL above — see note) |
+| `DATABASE_USERNAME` | value of `PGUSER` from the DB service |
+| `DATABASE_PASSWORD` | value of `PGPASSWORD` from the DB service |
+| `JWT_SECRET` | any 64-char random string — generate with: `openssl rand -hex 32` |
+| `MAIL_HOST` | `smtp.gmail.com` (or leave blank — password reset still works, just won't send email) |
 | `MAIL_PORT` | `587` |
-| `MAIL_USERNAME` | `your-email@gmail.com` |
-| `MAIL_PASSWORD` | *(Gmail App Password — see below)* |
-| `FRONTEND_URL` | `https://your-expo-app.com` |
+| `MAIL_USERNAME` | your Gmail address (needs App Password, not regular password) |
+| `MAIL_PASSWORD` | your Gmail App Password |
+| `FRONTEND_URL` | `https://scanit.app` (or anything, used only in reset email links) |
 
-### Generate a JWT Secret
+> **Converting the DATABASE_URL:** Railway gives `postgresql://user:pass@host:port/db`.  
+> For Spring Boot you need `jdbc:postgresql://host:port/db` as the URL, with user/pass as separate vars.
+
+5. Click **Deploy**. First deploy takes ~3 minutes (Maven build). Check logs — you should see:
+   ```
+   ScanIt database seeded successfully!
+   Consumer: ama.m@scanit.app / password123
+   Seller:   kofi@scanit.app  / password123
+   ```
+6. Go to **Settings → Networking → Generate Domain** — you get a URL like:
+   ```
+   https://scanit-backend-production.up.railway.app
+   ```
+7. Test it:
+   ```bash
+   curl https://scanit-backend-production.up.railway.app/api/v1/actuator/health
+   # → {"status":"UP"}
+   ```
+
+---
+
+## Step 4 — Point the mobile app at the live backend
+
+Edit `.env.local` in the repo root:
+
+```env
+EXPO_PUBLIC_API_URL=https://scanit-backend-production.up.railway.app/api/v1
+```
+
+Then restart the Expo bundler:
+```bash
+npx expo start --clear
+```
+
+Any phone that scans your QR code in Expo Go will now talk to the live backend. Users can register real accounts, scan products, and see real data.
+
+---
+
+## Step 5 — Build a standalone app (so users don't need Expo Go)
+
+For a proper app anyone can install without Expo Go:
 
 ```bash
-openssl rand -base64 32
+npm install -g eas-cli
+eas login
+eas build:configure   # creates eas.json
+
+# Android APK (for direct install / Play Store)
+eas build -p android --profile preview
+
+# iOS (requires Apple Developer account)
+eas build -p ios --profile preview
 ```
 
-Paste the output as the value of `JWT_SECRET`.
+EAS Build runs in the cloud. When done it gives you a download link. Share the `.apk` directly or submit to stores.
 
-### Step 4 — Deploy
+For the env var to be baked into the build, add it to `eas.json`:
 
-Push to `main` — Railway will build and deploy automatically.
-
-Your backend will be live at:
-```
-https://your-service.railway.app/api/v1
+```json
+{
+  "build": {
+    "preview": {
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://scanit-backend-production.up.railway.app/api/v1"
+      }
+    }
+  }
+}
 ```
 
 ---
 
-## Option B: Deploy with Docker
+## Auto-deploy on every push
 
-### Step 1 — Build the JAR
+Railway automatically redeploys whenever you push to the `main` branch. No extra CI setup needed.
 
-```bash
-cd backend
-./mvnw clean package -DskipTests
-```
+If you want GitHub Actions for tests before deploy, add `.github/workflows/ci.yml`:
 
-### Step 2 — Create a Dockerfile
-
-```dockerfile
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-COPY target/scanit-backend-1.0.0.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
-```
-
-### Step 3 — Build and push the image
-
-```bash
-docker build -t ghcr.io/codequest-group-86/scanit-backend:latest .
-docker push ghcr.io/codequest-group-86/scanit-backend:latest
-```
-
-### Step 4 — Run on any server
-
-```bash
-docker run -d \
-  -p 8080:8080 \
-  -e SPRING_PROFILES_ACTIVE=prod \
-  -e DATABASE_URL=jdbc:postgresql://your-db-host:5432/scanitdb \
-  -e DATABASE_USERNAME=postgres \
-  -e DATABASE_PASSWORD=yourpassword \
-  -e JWT_SECRET=your-256-bit-base64-secret \
-  ghcr.io/codequest-group-86/scanit-backend:latest
+```yaml
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { java-version: '17', distribution: 'temurin' }
+      - run: mvn -q test
+        working-directory: backend
 ```
 
 ---
 
-## Option C: Deploy to Render
+## Cost
 
-1. Go to [render.com](https://render.com) → **New Web Service**
-2. Connect the `CodeQuest-Group-86/ScanIt` repo
-3. Set **Root Directory** to `backend`
-4. Set **Build Command**: `./mvnw clean package -DskipTests`
-5. Set **Start Command**: `java -jar target/scanit-backend-1.0.0.jar`
-6. Add all environment variables from the table in Option A
-7. Create a **PostgreSQL** database on Render and link it
+| Service | Free tier |
+|---|---|
+| Railway Postgres | 1 GB storage, 100 hrs/month free |
+| Railway backend | $5/month Hobby plan (free trial available) |
+| EAS Build | Free for personal projects |
+| Expo Go (dev) | Free — no build needed |
 
----
-
-## Gmail App Password Setup
-
-If you use Gmail for the email service:
-
-1. Enable 2-Factor Authentication on your Google Account
-2. Go to **Google Account → Security → App Passwords**
-3. Generate a password for "Mail"
-4. Use that 16-character password as `MAIL_PASSWORD`
+For a real launch, the Railway Hobby plan ($5/month) gives unlimited hours and keeps the DB always on.
 
 ---
 
-## Production Checklist
+## Environment variable reference (production)
 
-- [ ] `JWT_SECRET` is a random 256-bit base64 string (never commit it)
-- [ ] `SPRING_PROFILES_ACTIVE=prod`
-- [ ] PostgreSQL is provisioned and `DATABASE_URL` is set
-- [ ] `ddl-auto: update` (in `application-prod.yml`) — tables are created/migrated automatically
-- [ ] HTTPS is enabled on your domain (Railway/Render do this automatically)
-- [ ] CORS `allowed-origins` is restricted to your Expo app's domain (optional but good practice)
-- [ ] Email credentials are set (or forgot-password will silently log the error)
-- [ ] First-run seed data is loaded by `DataSeeder` on startup
-
----
-
-## Updating the Production App
-
-### Push a new version
-
-```bash
-git add .
-git commit -m "feat: your change"
-git push origin main
-```
-
-Railway/Render will auto-deploy on every push to `main`.
-
-### Database migrations
-
-The backend uses `ddl-auto: update` in production, which means Hibernate automatically adds new columns and tables. It never drops existing data.
-
-For schema changes that require renaming or dropping columns, write a manual SQL migration and run it against the production database before deploying.
+| Variable | Required | Notes |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | ✅ | Must be `prod` |
+| `DATABASE_URL` | ✅ | `jdbc:postgresql://...` format |
+| `DATABASE_USERNAME` | ✅ | |
+| `DATABASE_PASSWORD` | ✅ | |
+| `JWT_SECRET` | ✅ | 32+ byte random hex |
+| `PORT` | auto | Railway sets this automatically |
+| `MAIL_HOST` | optional | Only needed for password reset emails |
+| `MAIL_PORT` | optional | |
+| `MAIL_USERNAME` | optional | |
+| `MAIL_PASSWORD` | optional | |
+| `FRONTEND_URL` | optional | Used in reset email links |
 
 ---
 
-## Monitoring
+## Public registration
 
-After deploying, verify the backend is healthy:
+Registration is open by default — `POST /api/v1/auth/sign-up` is a public endpoint (no JWT needed). Anyone with the app can create a Consumer or Seller account. The backend stores their hashed password in PostgreSQL and returns JWT tokens immediately.
 
-```bash
-curl https://your-service.railway.app/api/v1/products
-```
-
-You should receive a JSON array of seeded products.
+To restrict registration (invite-only), add an `ALLOW_REGISTRATION=false` env var and a check in `AuthService.signUp()`.

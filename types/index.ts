@@ -61,6 +61,33 @@ export interface Product {
 
 export type AuthenticityStatus = 'authentic' | 'suspicious' | 'counterfeit';
 
+export type AIModelName =
+  | 'HuggingFace Vision'
+  | 'TensorFlow Lite'
+  | 'MobileNet'
+  | 'CLIP'
+  | 'ResNet-50'
+  | 'BERT';
+
+export interface AIModelResult {
+  model: AIModelName;
+  confidence: number; // 0–100
+  label: string;
+}
+
+export interface AIAnalysisResult {
+  /** Primary product recognition (Vision API + TFLite + MobileNet) */
+  recognition: AIModelResult;
+  /** Visual similarity score for similar product matching (CLIP) */
+  similarity: AIModelResult;
+  /** Counterfeit probability — lower = more likely authentic (ResNet-50) */
+  authenticity: AIModelResult;
+  /** Semantic search embedding was used (BERT) */
+  semantic: AIModelResult;
+  /** Combined weighted confidence across all models */
+  overallConfidence: number;
+}
+
 export interface ScanResult {
   id: string;
   product: Product;
@@ -68,6 +95,8 @@ export interface ScanResult {
   scannedAt: string;
   authenticityStatus: AuthenticityStatus;
   imageUri?: string;
+  /** AI model breakdown — populated when AI pipeline is used */
+  aiAnalysis?: AIAnalysisResult;
 }
 
 export interface Recommendation {
