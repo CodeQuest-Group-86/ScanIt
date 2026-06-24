@@ -5,6 +5,7 @@ import com.scanit.backend.dto.UserDto;
 import com.scanit.backend.dto.auth.*;
 import com.scanit.backend.entity.User;
 import com.scanit.backend.service.AuthService;
+import com.scanit.backend.service.OtpService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final OtpService otpService;
 
     @PostMapping("/sign-up")
     public ResponseEntity<ApiResponse<AuthResponse>> signUp(@Valid @RequestBody SignUpRequest request) {
@@ -52,5 +54,31 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserDto>> getMe(Authentication authentication) {
         User user = (User) authentication.getPrincipal();
         return ResponseEntity.ok(ApiResponse.success(authService.toDto(user)));
+    }
+
+    // ── OTP endpoints ─────────────────────────────────────────────────────────
+
+    /** Step 1 — send a 6-digit OTP via SMS (Twilio Verify) or email (Resend). */
+    @PostMapping("/otp/send")
+    public ResponseEntity<ApiResponse<Void>> sendOtp(@Valid @RequestBody SendOtpRequest req) {
+        otpService.send(req);
+        return ResponseEntity.ok(ApiResponse.success("OTP sent", null));
+    }
+
+    /** Step 2 — verify the code. Returns resetToken for reset-password purpose. */
+    @PostMapping("/otp/verify")
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> verifyOtp(@Valid @RequestBody VerifyOtpRequest req) {
+        String resetToken = otpService.verify(req);
+        java.util.Map<String, String> data = resetToken != null
+                ? java.util.Map.of("resetToken", resetToken)
+                : java.util.Map.of();
+        return ResponseEntity.ok(ApiResponse.success("OTP verified", data));
+    }
+
+    /** Step 3 (reset-password only) — set a new password using the resetToken. */
+    @PostMapping("/otp/reset-password")
+    public ResponseEntity<ApiResponse<Void>> otpResetPassword(@Valid @RequestBody OtpResetPasswordRequest req) {
+        otpService.resetPassword(req);
+        return ResponseEntity.ok(ApiResponse.success("Password updated successfully", null));
     }
 }

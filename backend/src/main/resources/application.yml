@@ -33,3 +33,18 @@ app:
     from: noreply@scanit.app
   frontend:
     url: http://localhost:19006
+
+# ── Twilio Verify — SMS OTP (free trial) ──────────────────────────────────────
+# Sign up at https://www.twilio.com/try-twilio
+# Verify → create a service → copy Service SID
+twilio:
+  account-sid: ${TWILIO_ACCOUNT_SID:}
+  auth-token: ${TWILIO_AUTH_TOKEN:}
+  verify:
+    service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
+
+# ── Resend — Email OTP (free tier: 3,000 emails/month) ────────────────────────
+# Sign up at https://resend.com → API Keys → Create key
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from: ${RESEND_FROM:onboarding@resend.dev}

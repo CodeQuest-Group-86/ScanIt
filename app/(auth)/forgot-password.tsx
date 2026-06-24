@@ -1,3 +1,11 @@
+/**
+ * app/(auth)/forgot-password.tsx
+ *
+ * Step 1 of the OTP password-reset flow.
+ * User enters their phone number or email → OTP sent → navigate to verify-otp.
+ * Steps 2 & 3 are handled by verify-otp.tsx → reset-password.tsx.
+ */
+
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
@@ -6,40 +14,46 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { authService } from '@/services/auth';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
-import { Colors, Spacing, Typography, Radii } from '@/theme';
+import Chip from '@/components/Chip';
+import { Colors, Spacing, Typography } from '@/theme';
+import type { OtpChannel } from '@/types';
 
 export default function ForgotPasswordScreen() {
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
+  const [channel, setChannel] = useState<OtpChannel>('sms');
+  const [contact, setContact] = useState('');
+  const [contactError, setContactError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!email.trim()) { setEmailError('Email is required'); return; }
-    if (!/\S+@\S+\.\S+/.test(email)) { setEmailError('Enter a valid email'); return; }
-    setEmailError('');
-    setLoading(true);
-    await authService.forgotPassword(email.trim());
-    setLoading(false);
-    setSent(true);
+  const validateContact = () => {
+    if (!contact.trim()) { setContactError('This field is required'); return false; }
+    if (channel === 'email' && !/\S+@\S+\.\S+/.test(contact)) {
+      setContactError('Enter a valid email'); return false;
+    }
+    if (channel === 'sms' && !/^\+?[0-9]{9,15}$/.test(contact.replace(/\s/g, ''))) {
+      setContactError('Enter a valid phone number (e.g. +233201234567)'); return false;
+    }
+    return true;
   };
 
-  if (sent) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.container}>
-          <View style={styles.successIcon}>
-            <Ionicons name="mail-open-outline" size={64} color={Colors.accent} />
-          </View>
-          <Text style={styles.title}>Check your email</Text>
-          <Text style={styles.subtitle}>
-            We sent a password reset link to {'\n'}<Text style={styles.email}>{email}</Text>
-          </Text>
-          <Button label="Back to Sign In" onPress={() => router.replace('/(auth)/sign-in')} fullWidth size="lg" style={styles.btn} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleSend = async () => {
+    if (!validateContact()) return;
+    setContactError('');
+    setLoading(true);
+
+    const normalised = channel === 'sms' ? contact.replace(/\s/g, '') : contact.trim();
+    const res = await authService.sendOtp({ contact: normalised, channel, purpose: 'reset-password' });
+    setLoading(false);
+
+    if (!res.success) {
+      setContactError(res.message ?? 'Failed to send OTP. Please try again.');
+      return;
+    }
+
+    router.push({
+      pathname: '/(auth)/verify-otp' as never,
+      params: { contact: normalised, channel, purpose: 'reset-password' } as never,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -49,20 +63,56 @@ export default function ForgotPasswordScreen() {
         </TouchableOpacity>
 
         <Text style={styles.title}>Forgot Password?</Text>
-        <Text style={styles.subtitle}>Enter your email and we&apos;ll send you a reset link.</Text>
+        <Text style={styles.subtitle}>
+          Choose how you&apos;d like to receive your verification code.
+        </Text>
+
+        {/* Channel toggle */}
+        <View style={styles.channelRow}>
+          <Chip label="📱 Phone (SMS)" active={channel === 'sms'} onPress={() => { setChannel('sms'); setContact(''); setContactError(''); }} style={styles.channelChip} />
+          <Chip label="✉️ Email" active={channel === 'email'} onPress={() => { setChannel('email'); setContact(''); setContactError(''); }} style={styles.channelChip} />
+        </View>
 
         <View style={styles.form}>
-          <Input
-            label="Email"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            leftIcon="mail-outline"
-            error={emailError}
-          />
-          <Button label="Send Reset Link" onPress={handleSubmit} loading={loading} fullWidth size="lg" />
+          {channel === 'sms' ? (
+            <Input
+              label="Phone Number"
+              placeholder="+233201234567"
+              value={contact}
+              onChangeText={text => { setContact(text); setContactError(''); }}
+              keyboardType="phone-pad"
+              leftIcon="call-outline"
+              error={contactError}
+            />
+          ) : (
+            <Input
+              label="Email Address"
+              placeholder="you@example.com"
+              value={contact}
+              onChangeText={text => { setContact(text); setContactError(''); }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              leftIcon="mail-outline"
+              error={contactError}
+            />
+          )}
+
+          <Button label="Send Verification Code" onPress={handleSend} loading={loading} fullWidth size="lg" />
+        </View>
+
+        {/* Flow indicator */}
+        <View style={styles.steps}>
+          {['Send code', 'Verify', 'New password'].map((s, i) => (
+            <React.Fragment key={s}>
+              <View style={styles.stepItem}>
+                <View style={[styles.stepDot, i === 0 && styles.stepDotActive]}>
+                  <Text style={[styles.stepNum, i === 0 && styles.stepNumActive]}>{i + 1}</Text>
+                </View>
+                <Text style={[styles.stepLabel, i === 0 && styles.stepLabelActive]}>{s}</Text>
+              </View>
+              {i < 2 && <View style={styles.stepLine} />}
+            </React.Fragment>
+          ))}
         </View>
       </View>
     </SafeAreaView>
@@ -74,19 +124,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: Spacing.xl },
   back: { marginBottom: Spacing.xl, alignSelf: 'flex-start' },
   title: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text, marginBottom: Spacing.sm },
-  subtitle: { fontSize: Typography.sizes.md, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xxxl },
-  email: { color: Colors.primary, fontWeight: Typography.weights.semibold },
+  subtitle: { fontSize: Typography.sizes.md, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.xl },
+  channelRow: { flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.xl },
+  channelChip: { flex: 1 },
   form: { gap: Spacing.lg },
-  btn: { marginTop: Spacing.md },
-  successIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.accent + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: Spacing.xxxl,
-    marginTop: Spacing.section,
-  },
+  steps: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xxxl, gap: 0 },
+  stepItem: { alignItems: 'center', gap: Spacing.xs },
+  stepDot: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: Colors.border ?? '#D0C4B8', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface },
+  stepDotActive: { borderColor: Colors.primary, backgroundColor: Colors.primary },
+  stepNum: { fontSize: Typography.sizes.xs, fontWeight: Typography.weights.bold, color: Colors.textSecondary },
+  stepNumActive: { color: Colors.white },
+  stepLabel: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
+  stepLabelActive: { color: Colors.primary, fontWeight: Typography.weights.semibold },
+  stepLine: { width: 32, height: 2, backgroundColor: Colors.border ?? '#D0C4B8', marginBottom: Spacing.lg },
 });

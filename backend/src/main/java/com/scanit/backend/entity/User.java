@@ -59,6 +59,14 @@ public class User implements UserDetails {
     private String resetPasswordToken;
     private Instant resetPasswordTokenExpiry;
 
+    // ── OTP fields ────────────────────────────────────────────────────────────
+
+    private String otpCode;
+    private Instant otpExpiry;
+    /** "signup" or "reset-password" */
+    private String otpPurpose;
+    private String phoneNumber;
+
     // ── UserDetails contract ──────────────────────────────────────────────────
 
     @Override

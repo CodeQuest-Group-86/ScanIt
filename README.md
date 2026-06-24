@@ -29,6 +29,73 @@ npx expo start
 
 Scan the QR code with Expo Go on your phone.
 
+### Expo Go on a Physical Device — Fix "Not Connected to Backend"
+
+If you see a "Backend offline" banner in the app, it's because `localhost` on your phone refers to the phone itself — not your computer. Fix it in `.env.local`:
+
+```
+# Find your computer's local IP:
+#   Linux/Mac:  ip addr  (look for 192.168.x.x)
+#   Windows:    ipconfig (look for IPv4 Address)
+
+EXPO_PUBLIC_API_URL=http://192.168.1.42:8080/api/v1
+```
+
+Restart the Expo dev server after saving. Your phone and computer must be on the same Wi-Fi.
+
+> The app still works offline — AI vision analyses photos even without the backend. You just won't see prices and seller info until the backend is reachable.
+
+### OTP Authentication Setup (Free Tiers)
+
+The app sends verification codes on sign-up and for password resets. Two free-tier providers are supported:
+
+#### SMS OTP — Twilio Verify (free trial ~$15 credit ≈ 150 SMS)
+
+1. Sign up at [twilio.com](https://www.twilio.com/try-twilio)
+2. Go to **Verify** → create a service → copy the **Service SID**
+3. Copy your **Account SID** and **Auth Token** from the console
+4. Add these to your **backend** `application.properties` (never in the mobile app):
+
+```properties
+twilio.account-sid=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+twilio.auth-token=your_auth_token
+twilio.verify.service-sid=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+5. Your Spring Boot backend must expose:
+   - `POST /api/v1/auth/otp/send` — calls Twilio Verify to send the code
+   - `POST /api/v1/auth/otp/verify` — verifies the code, returns `{ resetToken }` for password resets
+   - `POST /api/v1/auth/otp/reset-password` — sets the new password using the resetToken
+
+#### Email OTP — Resend (free tier: 3,000 emails/month, no credit card)
+
+1. Sign up at [resend.com](https://resend.com)
+2. Create an API key
+3. Add to your backend:
+
+```properties
+resend.api-key=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+resend.from=onboarding@resend.dev   # sandbox address for testing
+```
+
+#### Backend endpoint contract
+
+All three endpoints follow this shape:
+
+```
+POST /auth/otp/send
+{ "contact": "+233201234567", "channel": "sms", "purpose": "signup" | "reset-password" }
+→ 200 OK
+
+POST /auth/otp/verify
+{ "contact": "+233201234567", "code": "123456", "purpose": "signup" | "reset-password" }
+→ { "data": { "resetToken": "..." } }   // resetToken only returned for reset-password
+
+POST /auth/otp/reset-password
+{ "contact": "+233201234567", "resetToken": "...", "newPassword": "newpass123" }
+→ 200 OK
+```
+
 ### Demo Account
 
 ```

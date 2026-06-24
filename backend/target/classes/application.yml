@@ -1,0 +1,35 @@
+spring:
+  profiles:
+    active: dev
+  application:
+    name: scanit-backend
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${PORT:8080}
+  servlet:
+    context-path: /api/v1
+
+management:
+  endpoints:
+    web:
+      base-path: /actuator
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  jwt:
+    # 256-bit base64 key — CHANGE THIS in production via JWT_SECRET env var
+    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    access-token-expiration: 3600000      # 1 hour  (ms)
+    refresh-token-expiration: 604800000   # 7 days  (ms)
+  mail:
+    from: noreply@scanit.app
+  frontend:
+    url: http://localhost:19006

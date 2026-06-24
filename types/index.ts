@@ -40,6 +40,8 @@ export interface Seller {
   verified: boolean;
   rating: number;
   reviewCount: number;
+  /** Price of this specific product at this seller's store */
+  price?: number;
 }
 
 export interface Product {
@@ -97,6 +99,11 @@ export interface ScanResult {
   imageUri?: string;
   /** AI model breakdown — populated when AI pipeline is used */
   aiAnalysis?: AIAnalysisResult;
+  /**
+   * true when the backend was unreachable during scan.
+   * Product data will be incomplete (no sellers or prices).
+   */
+  offlineMode?: boolean;
 }
 
 export interface Recommendation {
@@ -142,4 +149,29 @@ export interface ApiResponse<T> {
   data: T;
   success: boolean;
   message?: string;
+}
+
+// ─── OTP ──────────────────────────────────────────────────────────────────────
+
+export type OtpChannel = 'email' | 'sms';
+
+export interface SendOtpPayload {
+  /** E.164 phone (e.g. +233201234567) or email address */
+  contact: string;
+  channel: OtpChannel;
+  /** 'signup' | 'reset-password' */
+  purpose: 'signup' | 'reset-password';
+}
+
+export interface VerifyOtpPayload {
+  contact: string;
+  code: string;
+  purpose: 'signup' | 'reset-password';
+}
+
+export interface ResetPasswordPayload {
+  contact: string;
+  /** Token returned by verifyOtp */
+  resetToken: string;
+  newPassword: string;
 }

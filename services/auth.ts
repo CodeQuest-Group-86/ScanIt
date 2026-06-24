@@ -1,5 +1,14 @@
 import { api } from '@/utils/api';
-import type { ApiResponse, AuthTokens, LoginPayload, SignUpPayload, User } from '@/types';
+import type {
+  ApiResponse,
+  AuthTokens,
+  LoginPayload,
+  SignUpPayload,
+  User,
+  SendOtpPayload,
+  VerifyOtpPayload,
+  ResetPasswordPayload,
+} from '@/types';
 
 interface BackendAuthResponse {
   user: User;
@@ -61,6 +70,48 @@ export const authService = {
       return { success: true, data: user };
     } catch (e: any) {
       return { success: false, message: e.message ?? 'Could not load profile', data: null as never };
+    }
+  },
+
+  // ─── OTP ───────────────────────────────────────────────────────────────────
+
+  /**
+   * Request a 6-digit OTP sent via email (Resend) or SMS (Twilio Verify).
+   * The backend handles the actual delivery — this just triggers it.
+   */
+  async sendOtp(payload: SendOtpPayload): Promise<ApiResponse<null>> {
+    try {
+      await api.post('/auth/otp/send', payload, { skipAuth: true });
+      return { success: true, data: null };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Failed to send OTP', data: null };
+    }
+  },
+
+  /**
+   * Verify the 6-digit OTP entered by the user.
+   * On success the backend returns a short-lived resetToken (for password reset)
+   * or marks the account as verified (for sign-up).
+   */
+  async verifyOtp(payload: VerifyOtpPayload): Promise<ApiResponse<{ resetToken?: string }>> {
+    try {
+      const data = await api.post<{ resetToken?: string }>('/auth/otp/verify', payload, { skipAuth: true });
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Invalid or expired OTP', data: null as never };
+    }
+  },
+
+  /**
+   * Set a new password using the resetToken returned by verifyOtp.
+   * Only used in the forgot-password flow.
+   */
+  async resetPassword(payload: ResetPasswordPayload): Promise<ApiResponse<null>> {
+    try {
+      await api.post('/auth/otp/reset-password', payload, { skipAuth: true });
+      return { success: true, data: null };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Failed to reset password', data: null };
     }
   },
 };

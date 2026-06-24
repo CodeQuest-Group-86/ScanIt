@@ -92,7 +92,7 @@ const modelStyles = StyleSheet.create({
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export default function ScanResultScreen() {
-  const { currentResult, clearResult } = useScanStore();
+  const { currentResult, clearResult, offlineMode } = useScanStore();
   const { loadRecommendations, selectProduct } = useProductsStore();
   const { save, remove, isSaved } = useSavedStore();
 
@@ -141,7 +141,9 @@ export default function ScanResultScreen() {
   }
 
   const { product, confidence, authenticityStatus, aiAnalysis } = currentResult;
-  const bestPrice = product.sellers[0] ? product.price * 0.85 : product.price;
+  // Use the lowest seller price, or fall back to the product's listed price
+  const sellerPrices = product.sellers.filter(s => s.price && s.price > 0).map(s => s.price!);
+  const bestPrice = sellerPrices.length > 0 ? Math.min(...sellerPrices) : product.price;
   const saved = isSaved(product.id);
 
   return (
@@ -185,6 +187,16 @@ export default function ScanResultScreen() {
               </View>
             </View>
           </View>
+
+          {/* Offline mode notice */}
+          {offlineMode && (
+            <View style={styles.offlineBox}>
+              <Ionicons name="cloud-offline-outline" size={18} color={Colors.textSecondary} />
+              <Text style={styles.offlineText}>
+                Backend offline. Start the Spring Boot server and scan again to see real price and seller info.
+              </Text>
+            </View>
+          )}
 
           {/* Warning */}
           {authenticityStatus !== 'authentic' && (
@@ -312,6 +324,8 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 },
   altChip: { backgroundColor: Colors.primary + '15', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
   altChipText: { fontSize: Typography.sizes.xs, color: Colors.primary, fontWeight: Typography.weights.semibold },
+  offlineBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.border, borderRadius: Radii.md, padding: Spacing.md },
+  offlineText: { flex: 1, fontSize: Typography.sizes.sm, color: Colors.textSecondary, lineHeight: 18 },
   warningBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.warning + '15', borderRadius: Radii.md, padding: Spacing.md, borderLeftWidth: 3, borderLeftColor: Colors.warning },
   dangerBox: { backgroundColor: Colors.danger + '15', borderLeftColor: Colors.danger },
   warningText: { flex: 1, fontSize: Typography.sizes.sm, color: Colors.warning, lineHeight: 20 },
