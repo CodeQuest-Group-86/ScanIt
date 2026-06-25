@@ -19,6 +19,7 @@ com/scanit/backend/exception/BadRequestException.class
 com/scanit/backend/repository/UserRepository.class
 com/scanit/backend/entity/InventoryItem$InventoryItemBuilder.class
 com/scanit/backend/security/JwtAuthFilter.class
+com/scanit/backend/service/GeminiService$ProductResearch.class
 com/scanit/backend/service/OtpService.class
 com/scanit/backend/entity/Product$ProductBuilder.class
 com/scanit/backend/entity/Notification$NotificationBuilder.class
@@ -35,6 +36,7 @@ com/scanit/backend/entity/Seller$SellerBuilder.class
 com/scanit/backend/entity/ScanResult$ScanResultBuilder.class
 com/scanit/backend/dto/RecommendationDto$RecommendationDtoBuilder.class
 com/scanit/backend/repository/PriceAlertRepository.class
+com/scanit/backend/service/GeminiService$ResearchSeller.class
 com/scanit/backend/service/SellerService.class
 com/scanit/backend/repository/SellerRepository.class
 com/scanit/backend/dto/auth/ForgotPasswordRequest.class
