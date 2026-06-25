@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { Colors, Radii, Spacing, Typography } from '@/theme';
 import { Link, router } from 'expo-router';
 import React, { useState } from 'react';
-import { ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignInScreen() {
@@ -79,11 +79,6 @@ export default function SignInScreen() {
 
           <Button label="Sign In" onPress={handleLogin} loading={isLoading} fullWidth size="lg" />
 
-          <View style={styles.hintBox}>
-            <Text style={styles.hintTitle}>Demo Account</Text>
-            <Text style={styles.hintText}>Email: ama.m@scanit.app</Text>
-            <Text style={styles.hintText}>Password: any 6+ characters</Text>
-          </View>
           </GlassCard>
         </View>
 

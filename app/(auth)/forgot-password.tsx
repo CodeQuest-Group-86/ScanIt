@@ -69,8 +69,8 @@ export default function ForgotPasswordScreen() {
 
         {/* Channel toggle */}
         <View style={styles.channelRow}>
-          <Chip label="📱 Phone (SMS)" active={channel === 'sms'} onPress={() => { setChannel('sms'); setContact(''); setContactError(''); }} style={styles.channelChip} />
-          <Chip label="✉️ Email" active={channel === 'email'} onPress={() => { setChannel('email'); setContact(''); setContactError(''); }} style={styles.channelChip} />
+          <Chip label="Phone (SMS)" active={channel === 'sms'} onPress={() => { setChannel('sms'); setContact(''); setContactError(''); }} style={styles.channelChip} />
+          <Chip label="Email" active={channel === 'email'} onPress={() => { setChannel('email'); setContact(''); setContactError(''); }} style={styles.channelChip} />
         </View>
 
         <View style={styles.form}>
