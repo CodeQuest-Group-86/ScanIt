@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Shadows, Radii } from '@/theme';
+import { Colors, Shadows } from '@/theme';
 
 function ScanTabButton() {
   return (

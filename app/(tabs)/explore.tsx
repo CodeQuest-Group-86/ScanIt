@@ -116,7 +116,7 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.emptyTitle}>Ready to scan?</Text>
             <Text style={styles.emptyBody}>
-              Point your camera at any product to instantly see what it is, where to buy it, the price, and whether it's genuine.
+              Point your camera at any product to instantly see what it is, where to buy it, the price, and whether it&apos;s genuine.
             </Text>
           </View>
         )}

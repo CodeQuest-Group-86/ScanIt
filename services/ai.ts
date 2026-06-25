@@ -38,7 +38,7 @@ async function readImageBase64(uri: string): Promise<string | null> {
   try {
     if (uri.startsWith('file://') || uri.startsWith('content://')) {
       return await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64',
       });
     }
     // Remote URI — fetch and convert to base64
@@ -97,7 +97,7 @@ async function hfVision(imageUri: string): Promise<AIModelResult> {
   try {
     const b64 = await readImageBase64(imageUri);
     if (!b64) throw new Error('could not read image');
-    const json = await hfPostImage('google/vit-base-patch16-224', b64) as Array<{ label: string; score: number }>;
+      const json = await hfPostImage('google/vit-base-patch16-224', b64) as { label: string; score: number }[];
     if (Array.isArray(json) && json.length > 0) {
       const top = json[0];
       return mkResult('HuggingFace Vision', top.label.replace(/_/g, ' '), Math.round(top.score * 100));
@@ -121,11 +121,12 @@ async function hfVision(imageUri: string): Promise<AIModelResult> {
 async function tflite(imageUri: string): Promise<AIModelResult> {
   try {
     // Only attempt native inference when NitroModules are available (dev build)
+    // eslint-disable-next-line import/no-unresolved
     const nitro = await import('react-native-nitro-modules').catch(() => null);
     if (!nitro) throw new Error('native not available');
 
+    // eslint-disable-next-line import/no-unresolved
     const { loadTensorflowModel } = await import('react-native-fast-tflite');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const LABELS: string[] = require('../assets/models/imagenet_labels.json');
 
     const model = await loadTensorflowModel(
@@ -165,7 +166,7 @@ async function mobileNet(imageUri: string): Promise<AIModelResult> {
   try {
     const b64 = await readImageBase64(imageUri);
     if (!b64) throw new Error('could not read image');
-    const json = await hfPostImage('google/mobilenet_v2_1.0_224', b64) as Array<{ label: string; score: number }>;
+      const json = await hfPostImage('google/mobilenet_v2_1.0_224', b64) as { label: string; score: number }[];
     if (Array.isArray(json) && json.length > 0) {
       return mkResult('MobileNet', json[0].label.replace(/_/g, ' '), Math.round(json[0].score * 100));
     }
@@ -197,7 +198,7 @@ async function clip(imageUri: string): Promise<AIModelResult> {
     try {
       const b64 = await readImageBase64(imageUri);
       if (!b64) throw new Error('could not read image');
-      const json = await hfPostImage('openai/clip-vit-base-patch32', b64) as Array<{ label: string; score: number }>;
+      const json = await hfPostImage('openai/clip-vit-base-patch32', b64) as { label: string; score: number }[];
       if (Array.isArray(json) && json.length > 0) {
         return mkResult('CLIP', json[0].label, Math.round(json[0].score * 100));
       }
@@ -231,7 +232,7 @@ async function resNet50(imageUri: string): Promise<AIModelResult> {
     try {
       const b64 = await readImageBase64(imageUri);
       if (!b64) throw new Error('could not read image');
-      const json = await hfPostImage('microsoft/resnet-50', b64) as Array<{ label: string; score: number }>;
+      const json = await hfPostImage('microsoft/resnet-50', b64) as { label: string; score: number }[];
       if (Array.isArray(json) && json.length > 0) {
         return mkResult('ResNet-50', 'Product authenticity check', Math.round(json[0].score * 100));
       }
@@ -322,7 +323,7 @@ export const aiService = {
     };
   },
 
-  async semanticSearch(query: string, products: Product[]): Promise<Array<Product & { semanticScore: number }>> {
+  async semanticSearch(query: string, products: Product[]): Promise<(Product & { semanticScore: number })[]> {
     const sentences = products.map(p =>
       `${p.name} ${p.brand} ${p.category} ${p.description ?? ''}`,
     );
@@ -346,7 +347,7 @@ export const aiService = {
       .sort((a, b) => b.semanticScore - a.semanticScore);
   },
 
-  async findSimilar(imageUri: string, products: Product[]): Promise<Array<Product & { similarityScore: number }>> {
+  async findSimilar(imageUri: string, products: Product[]): Promise<(Product & { similarityScore: number })[]> {
     const clipResult = await clip(imageUri);
     return products
       .map((p, i) => ({ ...p, similarityScore: Math.max(30, clipResult.confidence - i * 8) }))

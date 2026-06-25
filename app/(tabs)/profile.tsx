@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
+import { productService } from '@/services/products';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
 import { getInitials, formatPrice } from '@/utils/format';
+import type { InventoryItem } from '@/types';
 
 interface RowItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -19,6 +21,8 @@ interface RowItem {
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
   const { unreadNotificationsCount } = useProductsStore();
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [loadingInventory, setLoadingInventory] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -38,7 +42,20 @@ export default function ProfileScreen() {
     );
   };
 
+  useEffect(() => {
+    if (!user || user.role !== 'seller') return;
+    setLoadingInventory(true);
+    productService.getInventory().then(res => {
+      if (res.success) setInventory(res.data);
+      setLoadingInventory(false);
+    });
+  }, [user]);
+
   if (!user) return null;
+
+  const sellerTotalProducts = inventory.length;
+  const sellerActiveListings = inventory.filter(i => i.listed).length;
+  const sellerTotalStock = inventory.reduce((s, i) => s + i.stock, 0);
 
   const consumerRows: RowItem[] = [
     { icon: 'time-outline', label: 'Scan history', onPress: () => router.push('/scan-history' as never) },
@@ -49,8 +66,8 @@ export default function ProfileScreen() {
 
   const sellerRows: RowItem[] = [
     { icon: 'cube-outline', label: 'Manage inventory', onPress: () => router.push('/seller-inventory' as never) },
-    { icon: 'list-outline', label: 'My listings', onPress: () => {} },
-    { icon: 'add-circle-outline', label: 'Add product', onPress: () => {} },
+    { icon: 'list-outline', label: 'My listings', onPress: () => router.push('/seller-inventory' as never) },
+    { icon: 'add-circle-outline', label: 'Add product', onPress: () => router.push('/(tabs)/scan') },
   ];
 
   return (
@@ -79,23 +96,42 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user.scansCount}</Text>
-            <Text style={styles.statLabel}>Scans</Text>
+         {/* Stats */}
+        {user.role === 'seller' ? (
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{loadingInventory ? '...' : sellerTotalProducts}</Text>
+              <Text style={styles.statLabel}>Products</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{loadingInventory ? '...' : sellerActiveListings}</Text>
+              <Text style={styles.statLabel}>Active</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{loadingInventory ? '...' : sellerTotalStock}</Text>
+              <Text style={styles.statLabel}>In Stock</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user.savedCount}</Text>
-            <Text style={styles.statLabel}>Saved</Text>
+        ) : (
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{user.scansCount}</Text>
+              <Text style={styles.statLabel}>Scans</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{user.savedCount}</Text>
+              <Text style={styles.statLabel}>Saved</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{formatPrice(user.totalSaved)}</Text>
+              <Text style={styles.statLabel}>Total saved</Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{formatPrice(user.totalSaved)}</Text>
-            <Text style={styles.statLabel}>Total saved</Text>
-          </View>
-        </View>
+        )}
 
         {/* Seller rows */}
         {user.role === 'seller' && (

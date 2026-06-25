@@ -29,16 +29,18 @@ public class JwtService {
     // ── Token generation ──────────────────────────────────────────────────────
 
     public String generateAccessToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, accessTokenExpiration);
+        return buildToken(new HashMap<>(), userDetails, accessTokenExpiration, "access");
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, refreshTokenExpiration);
+        return buildToken(new HashMap<>(), userDetails, refreshTokenExpiration, "refresh");
     }
 
-    private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration) {
+    private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration, String tokenType) {
+        Map<String, Object> claims = new HashMap<>(extraClaims);
+        claims.put("tokenType", tokenType);
         return Jwts.builder()
-                .claims(extraClaims)
+                .claims(claims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiration))
@@ -61,6 +63,10 @@ public class JwtService {
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         return claimsResolver.apply(extractAllClaims(token));
+    }
+
+    public String extractTokenType(String token) {
+        return extractClaim(token, claims -> claims.get("tokenType", String.class));
     }
 
     private boolean isTokenExpired(String token) {

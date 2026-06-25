@@ -7,7 +7,7 @@ import Input from '@/components/Input';
 import Chip from '@/components/Chip';
 import { authService } from '@/services/auth';
 import type { Role } from '@/types';
-import { Colors, Spacing, Typography, Radii } from '@/theme';
+import { Colors, Spacing, Typography } from '@/theme';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');

@@ -5,15 +5,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Dimensions,
-  Animated,
   Linking,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
 import { useScanStore } from '@/stores/scan';
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const PLANS = [
   {
@@ -79,7 +75,7 @@ export default function PaywallModal() {
             <View style={styles.iconWrap}>
               <Ionicons name="scan-outline" size={32} color={Colors.white} />
             </View>
-            <Text style={styles.title}>You've used all{'\n'}free scans today</Text>
+            <Text style={styles.title}>{'You'}{'\u2019'}ve used all{'\n'}free scans today</Text>
             <Text style={styles.subtitle}>
               {dailyScansUsed}/{dailyScansLimit} free scans used · Resets in 24 hrs
             </Text>

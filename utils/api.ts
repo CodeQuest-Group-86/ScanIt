@@ -117,8 +117,7 @@ export const api = {
   },
   /** Multipart/form-data upload — do NOT set Content-Type, let fetch set the boundary. */
   postForm<T>(path: string, formData: FormData, opts?: RequestOptions) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { headers: _h, ...rest } = opts ?? {};
+    const { ...rest } = opts ?? {};
     return request<T>(path, { ...rest, method: 'POST', body: formData, headers: {} });
   },
   put<T>(path: string, body?: unknown, opts?: RequestOptions) {

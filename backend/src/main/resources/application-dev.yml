@@ -37,7 +37,7 @@ logging:
 # Get a free Gemini API key at: https://aistudio.google.com/app/apikey
 # Free tier: 1,500 requests/day
 gemini:
-  api-key: ${GEMINI_API_KEY:AQ.Ab8RN6JaQRn5l4aeG6SnEAFw3-1RnwEw7JqxmQUWC3Y1Bdmg2g}
+  api-key: ${GEMINI_API_KEY:}
 
 openrouter:
   api-key: ${OPENROUTER_API_KEY:}

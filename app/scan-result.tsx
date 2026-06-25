@@ -10,7 +10,7 @@ import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
 import { AuthenticityBadge } from '@/components/Badge';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { formatPrice, formatConfidence } from '@/utils/format';
+import { formatPrice } from '@/utils/format';
 import type { Seller } from '@/types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -46,7 +46,7 @@ export default function ScanResultScreen() {
     );
   }
 
-  const { product, confidence, authenticityStatus } = currentResult;
+  const { product, authenticityStatus } = currentResult;
 
   const sellerPrices = product.sellers.filter(s => s.price && s.price > 0).map(s => s.price!);
   const currentPrice = product.price > 0 ? product.price : (sellerPrices[0] ?? 0);

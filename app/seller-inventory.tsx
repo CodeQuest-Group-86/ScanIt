@@ -6,7 +6,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { productService } from '@/services/products';
 import type { InventoryItem } from '@/types';
 import EmptyState from '@/components/EmptyState';
-import Button from '@/components/Button';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
 import { formatPrice } from '@/utils/format';
 
@@ -32,7 +31,7 @@ export default function SellerInventoryScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Inventory</Text>
-        <TouchableOpacity style={styles.addBtn}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/(tabs)/scan')}>
           <Ionicons name="add" size={24} color={Colors.primary} />
         </TouchableOpacity>
       </View>

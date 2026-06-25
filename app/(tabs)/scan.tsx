@@ -268,7 +268,7 @@ export default function ScanScreen() {
           activeOpacity={0.8}
         >
           <Ionicons name="alert-circle-outline" size={20} color="#fff" />
-          <Text style={styles.invalidText}>Can't identify object — try a clearer shot</Text>
+          <Text style={styles.invalidText}>Can&apos;t identify object — try a clearer shot</Text>
           <Ionicons name="close" size={16} color="#ffffff99" />
         </TouchableOpacity>
       )}

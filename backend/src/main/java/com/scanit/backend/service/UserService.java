@@ -55,6 +55,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public void saveProduct(String userEmail, String productId) {
         User user = findUser(userEmail);
         Product product = findProduct(productId);

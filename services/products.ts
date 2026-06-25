@@ -52,13 +52,13 @@ export const productService = {
     return { success: true, data: undefined };
   },
 
-  async semanticSearch(query: string, category?: string): Promise<ApiResponse<Array<Product & { semanticScore: number }>>> {
+  async semanticSearch(query: string, category?: string): Promise<ApiResponse<(Product & { semanticScore: number })[]>> {
     const res = await this.getProducts(query, category);
     const ranked = await aiService.semanticSearch(query, res.data);
     return { success: true, data: ranked };
   },
 
-  async findSimilarByImage(imageUri: string): Promise<ApiResponse<Array<Product & { similarityScore: number }>>> {
+  async findSimilarByImage(imageUri: string): Promise<ApiResponse<(Product & { similarityScore: number })[]>> {
     const res = await this.getProducts();
     const ranked = await aiService.findSimilar(imageUri, res.data);
     return { success: true, data: ranked };

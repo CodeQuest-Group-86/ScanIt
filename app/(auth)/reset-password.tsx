@@ -13,7 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { authService } from '@/services/auth';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
-import { Colors, Spacing, Typography, Radii } from '@/theme';
+import { Colors, Spacing, Typography } from '@/theme';
 
 export default function ResetPasswordScreen() {
   const { contact, resetToken } = useLocalSearchParams<{ contact: string; resetToken: string }>();

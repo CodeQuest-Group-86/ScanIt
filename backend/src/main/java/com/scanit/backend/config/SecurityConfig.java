@@ -40,7 +40,9 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         // Public auth endpoints
-                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/auth/sign-up", "/auth/sign-in", "/auth/forgot-password",
+                                         "/auth/reset-password", "/auth/refresh-token",
+                                         "/auth/otp/**").permitAll()
                         // Health check (Railway / Docker)
                         .requestMatchers("/actuator/health").permitAll()
                         // H2 console (dev only)
@@ -65,7 +67,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://localhost:19006", "http://localhost:8081"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

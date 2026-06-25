@@ -115,6 +115,11 @@ public class AuthService {
             throw new BadRequestException("Invalid or expired refresh token");
         }
 
+        String tokenType = jwtService.extractTokenType(refreshToken);
+        if (!"refresh".equals(tokenType)) {
+            throw new BadRequestException("Invalid token type: expected refresh token");
+        }
+
         return buildAuthResponse(user);
     }
 

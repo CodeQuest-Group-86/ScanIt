@@ -4,6 +4,8 @@ import com.scanit.backend.dto.ApiResponse;
 import com.scanit.backend.dto.ProductDto;
 import com.scanit.backend.dto.UserDto;
 import com.scanit.backend.dto.request.UpdateProfileRequest;
+import com.scanit.backend.exception.BadRequestException;
+import com.scanit.backend.exception.ResourceNotFoundException;
 import com.scanit.backend.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -43,7 +45,11 @@ public class UserController {
             @RequestBody Map<String, String> body,
             Authentication auth
     ) {
-        userService.saveProduct(auth.getName(), body.get("productId"));
+        String productId = body.get("productId");
+        if (productId == null || productId.isBlank()) {
+            throw new BadRequestException("productId is required");
+        }
+        userService.saveProduct(auth.getName(), productId);
         return ResponseEntity.ok(ApiResponse.success("Product saved", null));
     }
 
