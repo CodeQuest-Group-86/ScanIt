@@ -19,9 +19,11 @@ com/scanit/backend/exception/BadRequestException.class
 com/scanit/backend/repository/UserRepository.class
 com/scanit/backend/entity/InventoryItem$InventoryItemBuilder.class
 com/scanit/backend/security/JwtAuthFilter.class
+com/scanit/backend/service/OtpService.class
 com/scanit/backend/entity/Product$ProductBuilder.class
 com/scanit/backend/entity/Notification$NotificationBuilder.class
 com/scanit/backend/repository/NotificationRepository.class
+com/scanit/backend/service/GeminiService$QuotaExceededException.class
 com/scanit/backend/entity/PriceAlert.class
 com/scanit/backend/dto/InventoryItemDto.class
 com/scanit/backend/dto/ScanResultDto.class
@@ -36,6 +38,8 @@ com/scanit/backend/repository/PriceAlertRepository.class
 com/scanit/backend/service/SellerService.class
 com/scanit/backend/repository/SellerRepository.class
 com/scanit/backend/dto/auth/ForgotPasswordRequest.class
+com/scanit/backend/service/GeminiService$ProductInfo.class
+com/scanit/backend/exception/InvalidObjectException.class
 com/scanit/backend/dto/auth/AuthResponse.class
 com/scanit/backend/entity/User.class
 com/scanit/backend/dto/auth/SignInRequest.class
@@ -59,10 +63,13 @@ com/scanit/backend/dto/PriceAlertDto.class
 com/scanit/backend/service/UserService.class
 com/scanit/backend/dto/auth/RefreshTokenRequest.class
 com/scanit/backend/util/MapToJsonConverter$1.class
+com/scanit/backend/service/GeminiService.class
 com/scanit/backend/dto/SellerDto.class
 com/scanit/backend/service/AuthService.class
 com/scanit/backend/exception/ResourceNotFoundException.class
 com/scanit/backend/dto/ApiResponse$ApiResponseBuilder.class
+com/scanit/backend/dto/auth/SendOtpRequest.class
+com/scanit/backend/dto/auth/OtpResetPasswordRequest.class
 com/scanit/backend/dto/SellerDto$SellerDtoBuilder.class
 com/scanit/backend/controller/UserController.class
 com/scanit/backend/controller/SellerController.class
@@ -70,6 +77,7 @@ com/scanit/backend/dto/PriceAlertDto$PriceAlertDtoBuilder.class
 com/scanit/backend/service/ProductService.class
 com/scanit/backend/util/MapToJsonConverter.class
 com/scanit/backend/dto/request/InventoryItemRequest.class
+com/scanit/backend/dto/auth/VerifyOtpRequest.class
 com/scanit/backend/dto/ScanResultDto$ScanResultDtoBuilder.class
 com/scanit/backend/entity/Seller.class
 com/scanit/backend/entity/Notification.class

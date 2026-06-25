@@ -3,6 +3,7 @@
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/Notification.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/UserDto.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/RecommendationDto.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/exception/InvalidObjectException.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/SellerService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/ScanService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/controller/AuthController.java
@@ -12,6 +13,7 @@
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/security/JwtService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/security/JwtAuthFilter.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/enums/NotificationType.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/auth/VerifyOtpRequest.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/repository/PriceAlertRepository.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/PriceAlertDto.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/ScanResultDto.java
@@ -19,15 +21,18 @@
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/UserService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/ProductService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/SellerDto.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/GeminiService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/exception/GlobalExceptionHandler.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/controller/NotificationController.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/Product.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/repository/UserRepository.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/enums/UserRole.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/OtpService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/exception/BadRequestException.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/controller/UserController.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/ScanResult.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/exception/ResourceNotFoundException.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/auth/OtpResetPasswordRequest.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/repository/ScanResultRepository.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/PriceAlert.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/User.java
@@ -45,6 +50,7 @@
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/repository/InventoryItemRepository.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/ApiResponse.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/auth/ResetPasswordRequest.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/auth/SendOtpRequest.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/AuthService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/InventoryItemDto.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/ProductDto.java

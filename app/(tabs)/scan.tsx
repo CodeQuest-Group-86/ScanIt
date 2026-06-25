@@ -83,9 +83,18 @@ export default function ScanScreen() {
     }
   }, [currentResult]);
 
-  // Show error alerts — but NOT for offline mode (that's handled by the banner)
+  // Show error alerts — but NOT for offline mode or special error codes
   useEffect(() => {
-    if (error && !offlineMode) Alert.alert('Scan failed', error);
+    if (!error || offlineMode) return;
+    if (error === 'invalid_object') return; // handled by banner
+    if (error === 'auth_required') {
+      Alert.alert('Sign in required', 'Please sign in to scan products.', [
+        { text: 'Sign In', onPress: () => router.replace('/(auth)/sign-in' as never) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+      return;
+    }
+    Alert.alert('Scan failed', error);
   }, [error, offlineMode]);
 
   // Reset last barcode when mode changes
@@ -235,6 +244,19 @@ export default function ScanScreen() {
         </View>
       )}
 
+      {/* Invalid object banner */}
+      {error === 'invalid_object' && !isAnalyzing && (
+        <TouchableOpacity
+          style={styles.invalidBanner}
+          onPress={() => useScanStore.getState().clearResult()}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="alert-circle-outline" size={20} color="#fff" />
+          <Text style={styles.invalidText}>Can't identify object — try a clearer shot</Text>
+          <Ionicons name="close" size={16} color="#ffffff99" />
+        </TouchableOpacity>
+      )}
+
       {/* Bottom controls */}
       <SafeAreaView style={styles.bottomBar} edges={['bottom']}>
         {/* Gallery (photo mode only) */}
@@ -323,6 +345,9 @@ const styles = StyleSheet.create({
   // Offline banner
   offlineBanner: { position: 'absolute', top: 100, left: Spacing.lg, right: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: 'rgba(0,0,0,0.75)', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radii.md, borderWidth: 1, borderColor: Colors.warning + '60' },
   offlineText: { flex: 1, color: Colors.warning, fontSize: Typography.sizes.xs, lineHeight: 16 },
+  // Invalid object banner
+  invalidBanner: { position: 'absolute', top: 100, left: Spacing.lg, right: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#C0392B', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderRadius: Radii.md },
+  invalidText: { flex: 1, color: '#fff', fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold },
 
   // Bottom bar
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg, paddingTop: Spacing.md },

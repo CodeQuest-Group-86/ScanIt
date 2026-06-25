@@ -39,31 +39,19 @@ export const useScanStore = create<ScanState>((set, get) => ({
   // ── Camera / gallery scan ────────────────────────────────────────────────
 
   analyze: async (imageUri) => {
-    set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false });
-
-    const stages = [
-      'HuggingFace Vision…',
-      'MobileNet classification…',
-      'CLIP similarity…',
-      'ResNet-50 authenticity check…',
-      'Matching product…',
-    ];
-    let stageIdx = 0;
-    set({ analyzingStage: stages[0] });
-    const stageTimer = setInterval(() => {
-      stageIdx = Math.min(stageIdx + 1, stages.length - 1);
-      set({ analyzingStage: stages[stageIdx] });
-    }, 500);
+    set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false,
+          analyzingStage: 'Identifying product…' });
 
     try {
       const res = await scanService.analyzeImage(imageUri);
-      clearInterval(stageTimer);
 
       if (!res.success || !res.data) {
         set({
           isAnalyzing: false,
           analyzingStage: null,
-          error: res.message ?? 'Could not identify product. Please try again.',
+          error: res.message === 'invalid_object' ? 'invalid_object'
+               : res.message === 'auth_required' ? 'auth_required'
+               : (res.message ?? 'Could not identify product. Please try again.'),
         });
         return;
       }
@@ -72,18 +60,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
         isAnalyzing: false,
         analyzingStage: null,
         currentResult: res.data,
-        aiAnalysis: res.data.aiAnalysis ?? null,
-        offlineMode: res.data.offlineMode ?? false,
+        aiAnalysis: null,
+        offlineMode: res.data!.offlineMode ?? false,
         sessionScans: s.sessionScans + 1,
-        history: [res.data, ...s.history].slice(0, MAX_HISTORY),
+        history: [res.data!, ...s.history].slice(0, MAX_HISTORY),
       }));
     } catch (e: any) {
-      clearInterval(stageTimer);
-      set({
-        isAnalyzing: false,
-        analyzingStage: null,
-        error: e?.message ?? 'Scan failed. Please try again.',
-      });
+      set({ isAnalyzing: false, analyzingStage: null, error: e?.message ?? 'Scan failed. Please try again.' });
     }
   },
 
@@ -120,7 +103,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   // ── Utilities ────────────────────────────────────────────────────────────
 
-  clearResult: () => set({ currentResult: null, aiAnalysis: null, offlineMode: false }),
+  clearResult: () => set({ currentResult: null, aiAnalysis: null, offlineMode: false, error: null }),
 
   toggleFlash: () => set(s => ({ flashEnabled: !s.flashEnabled })),
 

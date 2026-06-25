@@ -59,8 +59,10 @@ interface RequestOptions extends RequestInit {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { skipAuth, ...fetchOptions } = options;
 
+  // Don't default Content-Type for FormData — let fetch set the multipart boundary
+  const isFormData = fetchOptions.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(fetchOptions.headers as Record<string, string>),
   };
 
@@ -88,10 +90,10 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!response.ok) {
-    let message = `Request failed: ${response.status}`;
+    let message = `${response.status}`;
     try {
       const err = await response.json();
-      message = err.message ?? message;
+      message = err.message ? `${response.status}: ${err.message}` : `${response.status}`;
     } catch { /* ignore */ }
     throw new Error(message);
   }
@@ -112,6 +114,12 @@ export const api = {
   },
   post<T>(path: string, body?: unknown, opts?: RequestOptions) {
     return request<T>(path, { ...opts, method: 'POST', body: JSON.stringify(body) });
+  },
+  /** Multipart/form-data upload — do NOT set Content-Type, let fetch set the boundary. */
+  postForm<T>(path: string, formData: FormData, opts?: RequestOptions) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { headers: _h, ...rest } = opts ?? {};
+    return request<T>(path, { ...rest, method: 'POST', body: formData, headers: {} });
   },
   put<T>(path: string, body?: unknown, opts?: RequestOptions) {
     return request<T>(path, { ...opts, method: 'PUT', body: JSON.stringify(body) });

@@ -1,5 +1,8 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions, Image } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Animated, Dimensions, Image, Linking,
+} from 'react-native';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useScanStore } from '@/stores/scan';
@@ -8,88 +11,10 @@ import { useSavedStore } from '@/stores/saved';
 import { AuthenticityBadge } from '@/components/Badge';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
 import { formatPrice, formatConfidence } from '@/utils/format';
-import type { AIAnalysisResult, AIModelResult } from '@/types';
+import type { Seller } from '@/types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.82;
-
-// ─── AI model icon map ───────────────────────────────────────────────────────
-const MODEL_ICONS: Record<string, string> = {
-  'HuggingFace Vision': 'eye-outline',
-  'TensorFlow Lite': 'hardware-chip-outline',
-  'MobileNet': 'phone-portrait-outline',
-  'CLIP': 'images-outline',
-  'ResNet-50': 'shield-checkmark-outline',
-  'BERT': 'chatbubble-ellipses-outline',
-};
-
-const MODEL_COLORS: Record<string, string> = {
-  'HuggingFace Vision': '#FF9000',
-  'TensorFlow Lite': '#FF6F00',
-  'MobileNet': '#00897B',
-  'CLIP': '#7B1FA2',
-  'ResNet-50': '#D32F2F',
-  'BERT': '#1565C0',
-};
-
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function ConfidenceBar({ value, color }: { value: number; color: string }) {
-  const width = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(width, { toValue: value, duration: 600, useNativeDriver: false, delay: 200 }).start();
-  }, [value]);
-  return (
-    <View style={barStyles.track}>
-      <Animated.View
-        style={[
-          barStyles.fill,
-          {
-            backgroundColor: color,
-            width: width.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
-          },
-        ]}
-      />
-    </View>
-  );
-}
-
-const barStyles = StyleSheet.create({
-  track: { height: 6, backgroundColor: Colors.border, borderRadius: 3, flex: 1 },
-  fill: { height: 6, borderRadius: 3 },
-});
-
-function ModelRow({ result }: { result: AIModelResult }) {
-  const icon = MODEL_ICONS[result.model] ?? 'analytics-outline';
-  const color = MODEL_COLORS[result.model] ?? Colors.accent;
-  return (
-    <View style={modelStyles.row}>
-      <View style={[modelStyles.iconBox, { backgroundColor: color + '18' }]}>
-        <Ionicons name={icon as any} size={16} color={color} />
-      </View>
-      <View style={modelStyles.info}>
-        <View style={modelStyles.labelRow}>
-          <Text style={modelStyles.modelName}>{result.model}</Text>
-          <Text style={[modelStyles.pct, { color }]}>{result.confidence}%</Text>
-        </View>
-        <ConfidenceBar value={result.confidence} color={color} />
-        <Text style={modelStyles.label}>{result.label}</Text>
-      </View>
-    </View>
-  );
-}
-
-const modelStyles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, marginBottom: Spacing.md },
-  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  info: { flex: 1, gap: 4 },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  modelName: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold, color: Colors.text },
-  pct: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold },
-  label: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
-});
-
-// ─── Main screen ─────────────────────────────────────────────────────────────
+const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
 
 export default function ScanResultScreen() {
   const { currentResult, clearResult, offlineMode } = useScanStore();
@@ -110,26 +35,7 @@ export default function ScanResultScreen() {
     Animated.parallel([
       Animated.timing(slideAnim, { toValue: SHEET_HEIGHT, duration: 250, useNativeDriver: true }),
       Animated.timing(bgAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-    ]).start(() => {
-      clearResult();
-      router.back();
-    });
-  };
-
-  const handleRecommendations = () => {
-    if (!currentResult) return;
-    selectProduct(currentResult.product);
-    loadRecommendations(currentResult.product.id);
-    router.push('/recommendations' as never);
-  };
-
-  const handleSave = () => {
-    if (!currentResult) return;
-    if (isSaved(currentResult.product.id)) {
-      remove(currentResult.product.id);
-    } else {
-      save(currentResult.product);
-    }
+    ]).start(() => { clearResult(); router.back(); });
   };
 
   if (!currentResult) {
@@ -140,11 +46,19 @@ export default function ScanResultScreen() {
     );
   }
 
-  const { product, confidence, authenticityStatus, aiAnalysis } = currentResult;
-  // Use the lowest seller price, or fall back to the product's listed price
+  const { product, confidence, authenticityStatus } = currentResult;
+
   const sellerPrices = product.sellers.filter(s => s.price && s.price > 0).map(s => s.price!);
-  const bestPrice = sellerPrices.length > 0 ? Math.min(...sellerPrices) : product.price;
+  const currentPrice = product.price > 0 ? product.price : (sellerPrices[0] ?? 0);
+  const bestPrice = sellerPrices.length > 0 ? Math.min(...sellerPrices) : currentPrice;
+  const savings = currentPrice - bestPrice;
   const saved = isSaved(product.id);
+
+  const handleRecommendations = () => {
+    selectProduct(product);
+    loadRecommendations(product.id);
+    router.push('/recommendations' as never);
+  };
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -155,175 +69,181 @@ export default function ScanResultScreen() {
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
         <View style={styles.handle} />
 
-        {/* Detection badge */}
-        <View style={styles.detectionRow}>
+        {/* Header row */}
+        <View style={styles.headerRow}>
           <View style={styles.detectedBadge}>
             <Text style={styles.detectedText}>DETECTED · {formatConfidence(confidence)}</Text>
           </View>
-          <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
+          <TouchableOpacity onPress={() => saved ? remove(product.id) : save(product)} style={styles.saveBtn}>
             <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={22} color={saved ? Colors.primary : Colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+            <Ionicons name="close" size={22} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-          {/* Product image + info */}
+
+          {/* Product image + identity */}
           <View style={styles.productRow}>
             <Image
-              source={{ uri: product.imageUrl || `https://via.placeholder.com/100x100/${Colors.primary.slice(1)}/FFFFFF?text=${product.brand[0]}` }}
+              source={{ uri: product.imageUrl || `https://placehold.co/100x100/E76F2E/FFFFFF/png?text=${encodeURIComponent(product.name[0])}` }}
               style={styles.productImage}
               resizeMode="cover"
             />
             <View style={styles.productInfo}>
               <Text style={styles.brand}>{product.brand}</Text>
               <Text style={styles.productName}>{product.name}</Text>
-              <Text style={styles.location}>{product.sellers[0]?.location ?? 'Accra'}</Text>
+              <Text style={styles.category}>{product.category}</Text>
               <View style={styles.statusRow}>
                 <AuthenticityBadge status={authenticityStatus} />
-                {product.sellers.length > 1 && (
-                  <TouchableOpacity style={styles.altChip} onPress={handleRecommendations}>
-                    <Text style={styles.altChipText}>{product.sellers.length} alternatives</Text>
-                  </TouchableOpacity>
+                {product.verified && (
+                  <View style={styles.verifiedChip}>
+                    <Ionicons name="checkmark-circle" size={12} color={Colors.success} />
+                    <Text style={styles.verifiedText}>Verified</Text>
+                  </View>
                 )}
               </View>
             </View>
           </View>
 
-          {/* Offline mode notice */}
+          {/* Offline notice */}
           {offlineMode && (
             <View style={styles.offlineBox}>
-              <Ionicons name="cloud-offline-outline" size={18} color={Colors.textSecondary} />
+              <Ionicons name="cloud-offline-outline" size={16} color={Colors.textSecondary} />
               <Text style={styles.offlineText}>
-                Backend offline. Start the Spring Boot server and scan again to see real price and seller info.
+                Backend offline — prices and seller info unavailable. Connect to backend for live data.
               </Text>
             </View>
           )}
 
-          {/* Warning */}
+          {/* Authenticity warning */}
           {authenticityStatus !== 'authentic' && (
             <View style={[styles.warningBox, authenticityStatus === 'counterfeit' && styles.dangerBox]}>
-              <Ionicons
-                name="warning-outline"
-                size={20}
-                color={authenticityStatus === 'counterfeit' ? Colors.danger : Colors.warning}
-              />
+              <Ionicons name="warning-outline" size={18} color={authenticityStatus === 'counterfeit' ? Colors.danger : Colors.warning} />
               <Text style={[styles.warningText, authenticityStatus === 'counterfeit' && styles.dangerText]}>
                 {authenticityStatus === 'counterfeit'
                   ? 'This product may be counterfeit. Do not purchase.'
-                  : 'Authentication is uncertain. Verify before purchasing.'}
+                  : 'Authenticity uncertain. Verify before buying.'}
               </Text>
             </View>
           )}
 
-          {/* ── AI Analysis Breakdown ── */}
-          {aiAnalysis && <AIBreakdown analysis={aiAnalysis} />}
-
           {/* Price comparison */}
-          <View style={styles.priceCard}>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Current price</Text>
-              <Text style={styles.currentPrice}>{formatPrice(product.price, product.currency)}</Text>
+          {(currentPrice > 0 || bestPrice > 0) && (
+            <View style={styles.priceCard}>
+              <View style={styles.priceItem}>
+                <Text style={styles.priceLabel}>Current Price</Text>
+                <Text style={styles.currentPrice}>{formatPrice(currentPrice, product.currency)}</Text>
+              </View>
+              <View style={styles.priceDivider} />
+              <View style={styles.priceItem}>
+                <Text style={styles.priceLabel}>Best Nearby</Text>
+                <Text style={styles.bestPrice}>{formatPrice(bestPrice, product.currency)}</Text>
+                {savings > 0 && <Text style={styles.savingsText}>Save {formatPrice(savings)}</Text>}
+              </View>
             </View>
-            <View style={styles.priceDivider} />
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Best nearby</Text>
-              <Text style={styles.bestPrice}>{formatPrice(bestPrice, product.currency)}</Text>
-              <Text style={styles.savingsText}>Save {formatPrice(product.price - bestPrice)}</Text>
+          )}
+
+          {/* Where to buy — sellers */}
+          {product.sellers.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Where to Buy</Text>
+              {product.sellers.map(s => <SellerRow key={s.id} seller={s} currency={product.currency} />)}
             </View>
-          </View>
+          ) : !offlineMode && (
+            <View style={styles.noSellersBox}>
+              <Ionicons name="storefront-outline" size={20} color={Colors.textSecondary} />
+              <Text style={styles.noSellersText}>No sellers listed yet for this product.</Text>
+            </View>
+          )}
 
           {/* Recommendations CTA */}
-          <TouchableOpacity style={styles.recoCta} onPress={handleRecommendations} activeOpacity={0.85}>
-            <Text style={styles.recoCtaText}>See Recommendations</Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-          </TouchableOpacity>
+          {product.sellers.length > 1 && (
+            <TouchableOpacity style={styles.recoCta} onPress={handleRecommendations} activeOpacity={0.85}>
+              <Text style={styles.recoCtaText}>Compare All {product.sellers.length} Sellers</Text>
+              <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </Animated.View>
     </View>
   );
 }
 
-// ─── AI Breakdown panel ──────────────────────────────────────────────────────
-
-function AIBreakdown({ analysis }: { analysis: AIAnalysisResult }) {
+function SellerRow({ seller, currency }: { seller: Seller; currency: string }) {
   return (
-    <View style={aiStyles.card}>
-      <View style={aiStyles.header}>
-        <Ionicons name="analytics-outline" size={16} color={Colors.accent} />
-        <Text style={aiStyles.title}>AI Analysis Breakdown</Text>
-        <View style={aiStyles.overallBadge}>
-          <Text style={aiStyles.overallText}>{analysis.overallConfidence}% overall</Text>
+    <View style={sellerStyles.row}>
+      <View style={sellerStyles.left}>
+        <View style={sellerStyles.nameRow}>
+          <Text style={sellerStyles.name}>{seller.name}</Text>
+          {seller.verified && <Ionicons name="checkmark-circle" size={13} color={Colors.accent} />}
         </View>
+        <Text style={sellerStyles.location}>{seller.location}{seller.distance && seller.distance !== 'N/A' ? ` · ${seller.distance}` : ''}</Text>
+        {seller.price && seller.price > 0 && (
+          <Text style={sellerStyles.price}>{formatPrice(seller.price, currency)}</Text>
+        )}
+        {seller.rating > 0 && (
+          <View style={sellerStyles.ratingRow}>
+            <Ionicons name="star" size={11} color="#F59E0B" />
+            <Text style={sellerStyles.rating}>{seller.rating.toFixed(1)} ({seller.reviewCount})</Text>
+          </View>
+        )}
       </View>
-      <ModelRow result={analysis.recognition} />
-      <ModelRow result={analysis.similarity} />
-      <ModelRow result={analysis.authenticity} />
+      <View style={sellerStyles.actions}>
+        {seller.phone && (
+          <TouchableOpacity style={sellerStyles.btn} onPress={() => Linking.openURL(`tel:${seller.phone}`)}>
+            <Ionicons name="call" size={16} color={Colors.white} />
+          </TouchableOpacity>
+        )}
+        {seller.whatsapp && (
+          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.waBtn]} onPress={() => Linking.openURL(`https://wa.me/${seller.whatsapp.replace('+', '')}`)}>
+            <Ionicons name="logo-whatsapp" size={16} color={Colors.white} />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
 
-const aiStyles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radii.card,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.md,
-  },
-  title: {
-    flex: 1,
-    fontSize: Typography.sizes.sm,
-    fontWeight: Typography.weights.bold,
-    color: Colors.text,
-  },
-  overallBadge: {
-    backgroundColor: Colors.accent + '20',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
-    borderRadius: Radii.pill,
-  },
-  overallText: {
-    fontSize: Typography.sizes.xs,
-    fontWeight: Typography.weights.bold,
-    color: Colors.accent,
-  },
+const sellerStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: Spacing.md },
+  left: { flex: 1, gap: 3 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  name: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.text },
+  location: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
+  price: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.primary },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  rating: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
+  actions: { flexDirection: 'row', gap: Spacing.sm },
+  btn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  waBtn: { backgroundColor: '#25D366' },
 });
-
-// ─── Main styles ─────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
   sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_HEIGHT,
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: Radii.xxl,
-    borderTopRightRadius: Radii.xxl,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    height: SHEET_HEIGHT, backgroundColor: Colors.white,
+    borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
     ...Shadows.lg,
   },
-  handle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginTop: Spacing.md, marginBottom: Spacing.sm },
-  detectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md },
-  detectedBadge: { backgroundColor: Colors.accent + '20', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radii.pill },
+  handle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
+  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
+  detectedBadge: { flex: 1, backgroundColor: Colors.accent + '20', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radii.pill, alignSelf: 'flex-start' },
   detectedText: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.accent, letterSpacing: 0.5 },
   saveBtn: { padding: Spacing.sm },
+  closeBtn: { padding: Spacing.sm },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl, gap: Spacing.lg },
   productRow: { flexDirection: 'row', gap: Spacing.md },
-  productImage: { width: 96, height: 96, borderRadius: Radii.md },
+  productImage: { width: 96, height: 96, borderRadius: Radii.md, backgroundColor: Colors.border },
   productInfo: { flex: 1, gap: 4 },
   brand: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium, textTransform: 'uppercase', letterSpacing: 0.5 },
   productName: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.text, lineHeight: 22 },
-  location: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
+  category: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
   statusRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 },
-  altChip: { backgroundColor: Colors.primary + '15', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
-  altChipText: { fontSize: Typography.sizes.xs, color: Colors.primary, fontWeight: Typography.weights.semibold },
+  verifiedChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success + '15', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: Radii.pill },
+  verifiedText: { fontSize: Typography.sizes.xs, color: Colors.success, fontWeight: Typography.weights.semibold },
   offlineBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.border, borderRadius: Radii.md, padding: Spacing.md },
   offlineText: { flex: 1, fontSize: Typography.sizes.sm, color: Colors.textSecondary, lineHeight: 18 },
   warningBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.warning + '15', borderRadius: Radii.md, padding: Spacing.md, borderLeftWidth: 3, borderLeftColor: Colors.warning },
@@ -337,15 +257,10 @@ const styles = StyleSheet.create({
   bestPrice: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.primary },
   savingsText: { fontSize: Typography.sizes.xs, color: Colors.success, fontWeight: Typography.weights.medium },
   priceDivider: { width: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
-  recoCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.primary,
-    borderRadius: Radii.pill,
-    paddingVertical: Spacing.md,
-    ...Shadows.md,
-  },
+  section: { gap: 0 },
+  sectionTitle: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.text, marginBottom: Spacing.sm },
+  noSellersBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radii.md },
+  noSellersText: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
+  recoCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radii.pill, paddingVertical: Spacing.md, ...Shadows.md },
   recoCtaText: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.white },
 });

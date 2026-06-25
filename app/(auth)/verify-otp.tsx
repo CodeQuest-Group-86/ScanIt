@@ -39,16 +39,19 @@ export default function VerifyOtpScreen() {
     contact: string;
     channel: OtpChannel;
     purpose: 'signup' | 'reset-password';
-    // sign-up extras
     name?: string;
     email?: string;
     password?: string;
     role?: string;
+    devCode?: string;
   }>();
 
   const { contact, channel, purpose } = params;
+  const devCode = params.devCode && params.devCode.length === OTP_LENGTH ? params.devCode : '';
 
-  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
+  const [digits, setDigits] = useState<string[]>(
+    devCode ? devCode.split('') : Array(OTP_LENGTH).fill('')
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_SECONDS);
@@ -83,7 +86,10 @@ export default function VerifyOtpScreen() {
   const handleResend = async () => {
     setResendTimer(RESEND_SECONDS);
     setError('');
-    await authService.sendOtp({ contact, channel, purpose });
+    const res = await authService.sendOtp({ contact, channel, purpose });
+    if (res.success && res.data?.devCode) {
+      setDigits(res.data.devCode.split(''));
+    }
   };
 
   const handleVerify = async () => {
@@ -125,7 +131,7 @@ export default function VerifyOtpScreen() {
     }
   };
 
-  const channelLabel = channel === 'sms' ? `+${contact}` : contact;
+  const channelLabel = contact;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -151,6 +157,14 @@ export default function VerifyOtpScreen() {
             We sent a 6-digit code to{'\n'}
             <Text style={styles.contact}>{channelLabel}</Text>
           </Text>
+
+          {/* Dev mode banner */}
+          {devCode ? (
+            <View style={styles.devBanner}>
+              <Ionicons name="code-slash-outline" size={14} color={Colors.accent} />
+              <Text style={styles.devBannerText}>Dev mode — code pre-filled: {devCode}</Text>
+            </View>
+          ) : null}
 
           {/* OTP boxes */}
           <View style={styles.otpRow}>
@@ -249,4 +263,6 @@ const styles = StyleSheet.create({
   resendLabel: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
   timerText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
   resendLink: { fontSize: Typography.sizes.md, color: Colors.primary, fontWeight: Typography.weights.bold },
+  devBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.accent + '18', borderRadius: Radii.md, padding: Spacing.sm, marginBottom: Spacing.md },
+  devBannerText: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.medium },
 });

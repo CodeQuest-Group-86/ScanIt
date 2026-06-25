@@ -79,12 +79,12 @@ export const authService = {
    * Request a 6-digit OTP sent via email (Resend) or SMS (Twilio Verify).
    * The backend handles the actual delivery — this just triggers it.
    */
-  async sendOtp(payload: SendOtpPayload): Promise<ApiResponse<null>> {
+  async sendOtp(payload: SendOtpPayload): Promise<ApiResponse<{ devCode?: string }>> {
     try {
-      await api.post('/auth/otp/send', payload, { skipAuth: true });
-      return { success: true, data: null };
+      const data = await api.post<{ devCode?: string }>('/auth/otp/send', payload, { skipAuth: true });
+      return { success: true, data: data ?? {} };
     } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to send OTP', data: null };
+      return { success: false, message: e.message ?? 'Failed to send OTP', data: {} };
     }
   },
 

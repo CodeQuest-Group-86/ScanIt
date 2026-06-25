@@ -27,6 +27,7 @@ public class ScanService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
     private final ProductService productService;
+    private final GeminiService geminiService;
 
     // ── Analyze image ─────────────────────────────────────────────────────────
 
@@ -45,11 +46,14 @@ public class ScanService {
      * Search or a fine-tuned classification model served on HuggingFace/Railway.
      */
     @Transactional
-    public ScanResultDto analyzeImage(String userEmail, String imageUri, String imageLabel) {
+    public ScanResultDto analyzeImage(String userEmail, byte[] imageBytes, String mimeType) {
         User user = findUser(userEmail);
 
-        Product matched = findMatchingProduct(imageLabel, imageUri);
-        double confidence = (imageLabel != null && !imageLabel.isBlank()) ? 88.0 : 75.0;
+        // Ask Gemini Vision to identify the product
+        GeminiService.ProductInfo gemini = geminiService.identifyProduct(imageBytes, mimeType);
+
+        Product matched = findOrCreateProduct(gemini);
+        double confidence = gemini != null ? 92.0 : 70.0;
 
         ScanResult saved = scanResultRepository.save(
                 ScanResult.builder()
@@ -57,16 +61,14 @@ public class ScanService {
                         .product(matched)
                         .confidence(confidence)
                         .authenticityStatus(matched.getAuthenticity())
-                        .imageUri(imageUri)
+                        .imageUri("upload")
                         .build()
         );
 
         user.setScansCount(user.getScansCount() + 1);
         userRepository.save(user);
 
-        log.debug("Scan complete — user={} product={} label='{}' confidence={}",
-                userEmail, matched.getName(), imageLabel, confidence);
-
+        log.debug("Scan complete — user={} product={} confidence={}", userEmail, matched.getName(), confidence);
         return toDto(saved);
     }
 
@@ -120,44 +122,49 @@ public class ScanService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    /**
-     * Tries to find the best matching product for a given AI-detected label.
-     *
-     * Strategy:
-     *  1. Split the label into individual words (e.g. "chocolate sauce" → ["chocolate", "sauce"])
-     *  2. Search products whose name or brand contains each word
-     *  3. Try full label as a single search phrase
-     *  4. Fallback: pick a product deterministically based on imageUri hash
-     */
-    private Product findMatchingProduct(String imageLabel, String imageUri) {
-        if (imageLabel != null && !imageLabel.isBlank()) {
-            // Try individual words from the AI label
-            String[] words = imageLabel.split("[\\s,_\\-]+");
-            for (String word : words) {
-                if (word.length() > 3) {
-                    List<Product> results = productRepository
-                            .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(word, word);
-                    if (!results.isEmpty()) {
-                        log.debug("Label word '{}' matched {} products", word, results.size());
-                        return results.get(0);
-                    }
+    private Product findOrCreateProduct(GeminiService.ProductInfo gemini) {
+        if (gemini == null) {
+            throw new com.scanit.backend.exception.InvalidObjectException(
+                "Could not identify a product in the image. Try a clearer shot."
+            );
+        }
+
+        String name = gemini.name();
+        String brand = gemini.brand();
+
+        // 1. Try exact name+brand match
+        List<Product> exact = productRepository
+                .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(name, brand);
+        if (!exact.isEmpty()) {
+            log.debug("Gemini label '{}' matched existing product '{}'", name, exact.get(0).getName());
+            return exact.get(0);
+        }
+
+        // 2. Try individual words from the product name
+        for (String word : name.split("[\\s,_\\-]+")) {
+            if (word.length() > 3) {
+                List<Product> byWord = productRepository
+                        .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(word, word);
+                if (!byWord.isEmpty()) {
+                    log.debug("Word '{}' matched existing product '{}'", word, byWord.get(0).getName());
+                    return byWord.get(0);
                 }
             }
-
-            // Try the full label as-is
-            List<Product> byLabel = productRepository
-                    .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(imageLabel, imageLabel);
-            if (!byLabel.isEmpty()) return byLabel.get(0);
         }
 
-        // Deterministic hash fallback — same URI always returns same product (good for demos)
-        List<Product> all = productRepository.findAll();
-        if (all.isEmpty()) {
-            throw new ResourceNotFoundException("No products in database. Run the app first to seed data.");
-        }
-        int idx = Math.abs(imageUri.hashCode()) % all.size();
-        log.debug("No label match — falling back to hash index {}/{}", idx, all.size());
-        return all.get(idx);
+        // 3. Auto-create with Gemini's description
+        log.info("Auto-creating product from Gemini: '{}'", name);
+        return productRepository.save(Product.builder()
+                .name(name.substring(0, 1).toUpperCase() + name.substring(1))
+                .brand(brand)
+                .category(gemini.category())
+                .description(gemini.description())
+                .price(0.0)
+                .currency("GHS")
+                .origin("Ghana")
+                .verified(false)
+                .authenticity(com.scanit.backend.enums.AuthenticityStatus.AUTHENTIC)
+                .build());
     }
 
     // ── DTO mapping ───────────────────────────────────────────────────────────
@@ -167,7 +174,7 @@ public class ScanService {
                 .id(r.getId())
                 .product(productService.toDto(r.getProduct()))
                 .confidence(r.getConfidence())
-                .scannedAt(r.getScannedAt().toString())
+                .scannedAt(r.getScannedAt() != null ? r.getScannedAt().toString() : Instant.now().toString())
                 .authenticityStatus(r.getAuthenticityStatus().name().toLowerCase())
                 .imageUri(r.getImageUri())
                 .build();

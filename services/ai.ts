@@ -60,22 +60,29 @@ async function readImageBase64(uri: string): Promise<string | null> {
 
 /**
  * POST a base64-encoded image to a HuggingFace image-classification model.
- * Sends raw bytes decoded from base64 — compatible with ViT, MobileNet, ResNet-50.
+ * Retries once after 8s if the model is still loading (503).
  */
 async function hfPostImage(model: string, base64: string): Promise<unknown> {
-  // Decode base64 → Uint8Array so we send raw bytes (not JSON)
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
-  const r = await fetch(`${HF}/${model}`, {
+  const doPost = () => fetch(`${HF}/${model}`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${HF_TOKEN}`,
       'Content-Type': 'image/jpeg',
+      'x-wait-for-model': 'true',
     },
     body: bytes.buffer as ArrayBuffer,
   });
+
+  let r = await doPost();
+  // Model still loading — wait and retry once
+  if (r.status === 503) {
+    await new Promise(res => setTimeout(res, 8000));
+    r = await doPost();
+  }
   if (!r.ok) throw new Error(`HF ${r.status}: ${await r.text()}`);
   return r.json();
 }

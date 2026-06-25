@@ -44,20 +44,21 @@ public class OtpService {
 
     // ── Send OTP ──────────────────────────────────────────────────────────────
 
-    public void send(SendOtpRequest req) {
+    /**
+     * Returns the OTP code only in dev mode (when Twilio/Resend not configured),
+     * so the frontend can pre-fill it. Returns null when a real provider is used.
+     */
+    public String send(SendOtpRequest req) {
         String contact = req.getContact();
-        String channel = req.getChannel();   // "sms" | "email"
-        String purpose = req.getPurpose();   // "signup" | "reset-password"
+        String channel = req.getChannel();
+        String purpose = req.getPurpose();
 
-        // For signup: user may not exist yet — create a placeholder so we can
-        // store the OTP against their contact before the account is fully created.
-        // For reset-password: user must already exist.
         User user = findOrCreatePlaceholder(contact, channel, purpose);
 
         if ("sms".equalsIgnoreCase(channel)) {
-            sendViaTwilio(contact, user, purpose);
+            return sendViaTwilio(contact, user, purpose);
         } else {
-            sendViaResend(contact, user, purpose);
+            return sendViaResend(contact, user, purpose);
         }
     }
 
@@ -129,21 +130,21 @@ public class OtpService {
 
     // ── Twilio Verify ─────────────────────────────────────────────────────────
 
-    private void sendViaTwilio(String phone, User user, String purpose) {
+    private String sendViaTwilio(String phone, User user, String purpose) {
         if (!hasTwilio()) {
-            // Twilio not configured — fall back to local 6-digit code (dev/testing)
             saveLocalOtp(user, purpose);
-            log.warn("Twilio not configured. OTP for {} is: {}", phone, user.getOtpCode());
-            return;
+            String code = user.getOtpCode();
+            log.warn("Twilio not configured — dev OTP for {}: {}", phone, code);
+            return code; // returned to frontend for dev pre-fill
         }
         try {
             Twilio.init(twilioAccountSid, twilioAuthToken);
             Verification.creator(twilioServiceSid, phone, "sms").create();
-            // Twilio manages the code — store a sentinel so we know it's pending
             user.setOtpCode("twilio");
             user.setOtpExpiry(Instant.now().plusSeconds(OTP_TTL_SECONDS));
             user.setOtpPurpose(purpose);
             userRepository.save(user);
+            return null;
         } catch (Exception e) {
             log.error("Twilio send failed for {}: {}", phone, e.getMessage());
             throw new BadRequestException("Failed to send SMS. Check the phone number and try again.");
@@ -165,13 +166,13 @@ public class OtpService {
 
     // ── Resend email ──────────────────────────────────────────────────────────
 
-    private void sendViaResend(String email, User user, String purpose) {
+    private String sendViaResend(String email, User user, String purpose) {
         String code = generateCode();
         saveLocalOtp(user, purpose, code);
 
         if (resendApiKey.isBlank()) {
-            log.warn("Resend not configured. OTP for {} is: {}", email, code);
-            return;
+            log.warn("Resend not configured — dev OTP for {}: {}", email, code);
+            return code; // returned to frontend for dev pre-fill
         }
 
         String subject = "signup".equals(purpose)
@@ -203,6 +204,7 @@ public class OtpService {
             log.error("Resend IO error: {}", e.getMessage());
             throw new BadRequestException("Failed to send email. Please try again.");
         }
+        return null;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
