@@ -1,16 +1,17 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Linking } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { AuthenticityBadge } from '@/components/Badge';
+import GlassCard from '@/components/GlassCard';
 import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
-import { useScanStore } from '@/stores/scan';
 import { useSavedStore } from '@/stores/saved';
-import { AuthenticityBadge } from '@/components/Badge';
-import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { formatPrice, formatRelativeTime } from '@/utils/format';
+import { useScanStore } from '@/stores/scan';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import type { ScanResult } from '@/types';
+import { formatPrice, formatRelativeTime } from '@/utils/format';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { user } = useAuthStore();
@@ -43,7 +44,7 @@ export default function HomeScreen() {
             <Text style={styles.greeting}>{greeting()},</Text>
             <Text style={styles.name}>{firstName}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/notifications' as never)} style={styles.notifBtn}>
+          <TouchableOpacity onPress={() => router.push('/notifications')} style={styles.notifBtn}>
             <Ionicons name="notifications-outline" size={24} color={Colors.text} />
             {unreadNotificationsCount > 0 && (
               <View style={styles.notifBadge}>
@@ -66,22 +67,24 @@ export default function HomeScreen() {
 
         {/* Stats row — only shown after at least 1 scan */}
         {history.length > 0 && (
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{history.length}</Text>
-              <Text style={styles.statLabel}>Total scans</Text>
+          <GlassCard intensity={45} tint="light" padded={false} style={styles.statsRow}>
+            <View style={styles.statsInner}>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{history.length}</Text>
+                <Text style={styles.statLabel}>Total scans</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: Colors.success }]}>{authenticScans}</Text>
+                <Text style={styles.statLabel}>Authentic</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: Colors.warning }]}>{suspiciousScans}</Text>
+                <Text style={styles.statLabel}>Suspicious</Text>
+              </View>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: Colors.success }]}>{authenticScans}</Text>
-              <Text style={styles.statLabel}>Authentic</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={[styles.statValue, { color: Colors.warning }]}>{suspiciousScans}</Text>
-              <Text style={styles.statLabel}>Suspicious</Text>
-            </View>
-          </View>
+          </GlassCard>
         )}
 
         {/* Recent scans */}
@@ -89,7 +92,7 @@ export default function HomeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Recent Scans</Text>
-              <TouchableOpacity onPress={() => router.push('/(tabs)/history' as never)}>
+              <TouchableOpacity onPress={() => router.push('/(tabs)/history')}>
                 <Text style={styles.seeAll}>See all</Text>
               </TouchableOpacity>
             </View>
@@ -100,7 +103,7 @@ export default function HomeScreen() {
                 saved={isSaved(scan.product.id)}
                 onPress={() => {
                   useProductsStore.getState().selectProduct(scan.product);
-                  router.push('/product-detail' as never);
+                  router.push('/product-detail');
                 }}
                 onSave={() => isSaved(scan.product.id) ? remove(scan.product.id) : save(scan.product)}
               />
@@ -132,34 +135,36 @@ function RecentScanCard({ scan, saved, onPress, onSave }: {
   const bestSeller = product.sellers?.[0];
 
   return (
-    <TouchableOpacity style={styles.scanCard} onPress={onPress} activeOpacity={0.8}>
-      <Image
-        source={{ uri: product.imageUrl || `https://via.placeholder.com/64x64/E76F2E/FFFFFF?text=${product.brand?.[0] ?? 'P'}` }}
-        style={styles.scanThumb}
-      />
-      <View style={styles.scanInfo}>
-        <View style={styles.scanTop}>
-          <Text style={styles.scanName} numberOfLines={1}>{product.name}</Text>
-          <TouchableOpacity onPress={onSave} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={18} color={saved ? Colors.primary : Colors.textSecondary} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.scanMeta}>
-          <Text style={styles.scanPrice}>{formatPrice(product.price, product.currency)}</Text>
-          <AuthenticityBadge status={authenticityStatus} />
-        </View>
-        {bestSeller && (
-          <View style={styles.scanSeller}>
-            <Ionicons name="storefront-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.scanSellerName} numberOfLines={1}>{bestSeller.name}</Text>
-            <TouchableOpacity onPress={() => Linking.openURL(`tel:${bestSeller.phone}`)} style={styles.callBtn}>
-              <Ionicons name="call-outline" size={14} color={Colors.primary} />
+    <GlassCard intensity={40} tint="light" padded={false} style={styles.scanCard}>
+      <TouchableOpacity style={styles.scanCardInner} onPress={onPress} activeOpacity={0.8}>
+        <Image
+          source={{ uri: product.imageUrl || `https://via.placeholder.com/64x64/E76F2E/FFFFFF?text=${product.brand?.[0] ?? 'P'}` }}
+          style={styles.scanThumb}
+        />
+        <View style={styles.scanInfo}>
+          <View style={styles.scanTop}>
+            <Text style={styles.scanName} numberOfLines={1}>{product.name}</Text>
+            <TouchableOpacity onPress={onSave} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={18} color={saved ? Colors.primary : Colors.textSecondary} />
             </TouchableOpacity>
           </View>
-        )}
-        <Text style={styles.scanTime}>{formatRelativeTime(scannedAt)}</Text>
-      </View>
-    </TouchableOpacity>
+          <View style={styles.scanMeta}>
+            <Text style={styles.scanPrice}>{formatPrice(product.price, product.currency)}</Text>
+            <AuthenticityBadge status={authenticityStatus} />
+          </View>
+          {bestSeller && (
+            <View style={styles.scanSeller}>
+              <Ionicons name="storefront-outline" size={12} color={Colors.textSecondary} />
+              <Text style={styles.scanSellerName} numberOfLines={1}>{bestSeller.name}</Text>
+              <TouchableOpacity onPress={() => Linking.openURL(`tel:${bestSeller.phone}`)} style={styles.callBtn}>
+                <Ionicons name="call-outline" size={14} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          <Text style={styles.scanTime}>{formatRelativeTime(scannedAt)}</Text>
+        </View>
+      </TouchableOpacity>
+    </GlassCard>
   );
 }
 
@@ -176,7 +181,8 @@ const styles = StyleSheet.create({
   scanCtaTitle: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.white, marginBottom: 2 },
   scanCtaSubtitle: { fontSize: Typography.sizes.sm, color: Colors.white + 'CC' },
   scanIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.white + '20', alignItems: 'center', justifyContent: 'center' },
-  statsRow: { flexDirection: 'row', backgroundColor: Colors.white, borderRadius: Radii.card, padding: Spacing.lg, marginBottom: Spacing.xl, ...Shadows.sm },
+  statsRow: { marginBottom: Spacing.xl },
+  statsInner: { flexDirection: 'row', padding: Spacing.lg },
   statItem: { flex: 1, alignItems: 'center', gap: 2 },
   statValue: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.primary },
   statLabel: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
@@ -190,7 +196,8 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.text },
   emptyBody: { fontSize: Typography.sizes.md, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   // scan cards
-  scanCard: { flexDirection: 'row', backgroundColor: Colors.white, borderRadius: Radii.card, padding: Spacing.md, gap: Spacing.md, marginBottom: Spacing.md, ...Shadows.sm },
+  scanCard: { marginBottom: Spacing.md },
+  scanCardInner: { flexDirection: 'row', padding: Spacing.md, gap: Spacing.md },
   scanThumb: { width: 64, height: 64, borderRadius: Radii.md, backgroundColor: Colors.border },
   scanInfo: { flex: 1, gap: 4 },
   scanTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },

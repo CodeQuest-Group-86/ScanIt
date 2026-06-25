@@ -1,20 +1,27 @@
-import React, { useEffect, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Linking, Image,
-} from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useScanStore } from '@/stores/scan';
+import { AuthenticityBadge } from '@/components/Badge';
+import EmptyState from '@/components/EmptyState';
 import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
-import { AuthenticityBadge } from '@/components/Badge';
-import EmptyState from '@/components/EmptyState';
-import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { formatPrice, formatRelativeTime } from '@/utils/format';
+import { useScanStore } from '@/stores/scan';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import type { ScanResult } from '@/types';
+import { formatPrice, formatRelativeTime } from '@/utils/format';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import React, { useCallback, useEffect } from 'react';
+import {
+    ActivityIndicator,
+    FlatList,
+    Image,
+    Linking,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HistoryScreen() {
   const { user } = useAuthStore();
@@ -59,7 +66,7 @@ export default function HistoryScreen() {
             saved={isSaved(item.product.id)}
             onPress={() => {
               selectProduct(item.product);
-              router.push('/product-detail' as never);
+              router.push('/product-detail');
             }}
             onSave={() => isSaved(item.product.id) ? remove(item.product.id) : save(item.product)}
           />

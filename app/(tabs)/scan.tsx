@@ -10,25 +10,25 @@
  * Switching between modes: tap the barcode/camera icon in the bottom bar.
  */
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Animated,
-  Easing,
-  Alert,
-} from 'react-native';
-import { router } from 'expo-router';
+import PaywallModal from '@/components/PaywallModal';
+import ScanBracket from '@/components/ScanBracket';
+import { useScanStore } from '@/stores/scan';
+import { Colors, Radii, Spacing, Typography } from '@/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+    Alert,
+    Animated,
+    Easing,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useScanStore } from '@/stores/scan';
-import ScanBracket from '@/components/ScanBracket';
-import PaywallModal from '@/components/PaywallModal';
-import { Colors, Spacing, Typography, Radii } from '@/theme';
 
 type ScanMode = 'barcode' | 'photo';
 
@@ -83,7 +83,7 @@ export default function ScanScreen() {
   useEffect(() => {
     if (currentResult) {
       lastBarcode.current = null; // reset for next scan
-      router.push('/scan-result' as never);
+      router.push('/scan-result');
     }
   }, [currentResult]);
 
@@ -93,7 +93,7 @@ export default function ScanScreen() {
     if (error === 'invalid_object') return; // handled by banner
     if (error === 'auth_required') {
       Alert.alert('Sign in required', 'Please sign in to scan products.', [
-        { text: 'Sign In', onPress: () => router.replace('/(auth)/sign-in' as never) },
+        { text: 'Sign In', onPress: () => router.replace('/(auth)/sign-in') },
         { text: 'Cancel', style: 'cancel' },
       ]);
       return;

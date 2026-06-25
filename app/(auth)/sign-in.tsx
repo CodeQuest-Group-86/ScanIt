@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { router, Link } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAuthStore } from '@/stores/auth';
 import Button from '@/components/Button';
+import GlassCard from '@/components/GlassCard';
 import Input from '@/components/Input';
-import { Colors, Spacing, Typography, Radii } from '@/theme';
+import { useAuthStore } from '@/stores/auth';
+import { Colors, Radii, Spacing, Typography } from '@/theme';
+import { Link, router } from 'expo-router';
+import React, { useState } from 'react';
+import { ImageBackground, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
@@ -28,7 +29,7 @@ export default function SignInScreen() {
     clearError();
     if (!validate()) return;
     const ok = await login(email.trim(), password);
-    if (ok) router.replace('/(tabs)/explore' as never);
+    if (ok) router.replace('/(tabs)/explore');
   };
 
   return (
@@ -44,6 +45,7 @@ export default function SignInScreen() {
         </View>
 
         <View style={styles.form}>
+          <GlassCard intensity={50} tint="light" style={styles.glassForm}>
           {error ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorBannerText}>{error}</Text>
@@ -82,6 +84,7 @@ export default function SignInScreen() {
             <Text style={styles.hintText}>Email: ama.m@scanit.app</Text>
             <Text style={styles.hintText}>Password: any 6+ characters</Text>
           </View>
+          </GlassCard>
         </View>
 
         <View style={styles.footer}>
@@ -107,6 +110,7 @@ const styles = StyleSheet.create({
   logoIt: { fontSize: Typography.sizes.display, fontWeight: Typography.weights.extrabold, color: Colors.primary },
   tagline: { fontSize: Typography.sizes.lg, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
   form: { gap: Spacing.lg },
+  glassForm: { gap: Spacing.lg },
   errorBanner: { backgroundColor: Colors.danger + '20', borderRadius: Radii.md, padding: Spacing.md, borderLeftWidth: 3, borderLeftColor: Colors.danger },
   errorBannerText: { color: Colors.danger, fontSize: Typography.sizes.sm },
   forgotRow: { alignSelf: 'flex-end', marginTop: -Spacing.sm },

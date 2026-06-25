@@ -1,12 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSavedStore } from '@/stores/saved';
-import { useProductsStore } from '@/stores/products';
-import ProductCard from '@/components/ProductCard';
 import EmptyState from '@/components/EmptyState';
+import ProductCard from '@/components/ProductCard';
+import { useProductsStore } from '@/stores/products';
+import { useSavedStore } from '@/stores/saved';
 import { Colors, Spacing, Typography } from '@/theme';
+import { router } from 'expo-router';
+import React from 'react';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SavedScreen() {
   const { savedProducts, remove } = useSavedStore();
@@ -33,7 +33,7 @@ export default function SavedScreen() {
                 product={item}
                 onPress={() => {
                   selectProduct(item);
-                  router.push('/product-detail' as never);
+                  router.push('/product-detail');
                 }}
                 onSave={() => remove(item.id)}
                 isSaved

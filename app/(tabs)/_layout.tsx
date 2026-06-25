@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { Colors, Shadows } from '@/theme';
 
 function ScanTabButton() {
@@ -18,6 +19,18 @@ function ScanTabButton() {
   );
 }
 
+/** Frosted glass tab bar background — iOS only; Android gets solid white. */
+function GlassTabBarBackground() {
+  if (Platform.OS !== 'ios') return null;
+  return (
+    <BlurView
+      intensity={70}
+      tint="systemChromeMaterial"
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
@@ -27,9 +40,13 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarBackground: GlassTabBarBackground,
         tabBarStyle: {
-          backgroundColor: Colors.white,
-          borderTopWidth: 0,
+          // Transparent so the blur shows through on iOS
+          backgroundColor: Platform.OS === 'ios' ? 'transparent' : Colors.white,
+          borderTopWidth: Platform.OS === 'ios' ? 0 : 0,
+          // Subtle top border as glass edge highlight
+          borderTopColor: 'rgba(255,255,255,0.5)',
           height: 60 + insets.bottom,
           paddingBottom: insets.bottom,
           ...Shadows.md,

@@ -5,15 +5,15 @@
  * Receives contact + resetToken from verify-otp, lets user set a new password.
  */
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { authService } from '@/services/auth';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import { authService } from '@/services/auth';
 import { Colors, Spacing, Typography } from '@/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResetPasswordScreen() {
   const { contact, resetToken } = useLocalSearchParams<{ contact: string; resetToken: string }>();
@@ -56,7 +56,7 @@ export default function ResetPasswordScreen() {
           <Text style={styles.subtitle}>You can now sign in with your new password.</Text>
           <Button
             label="Sign In"
-            onPress={() => router.replace('/(auth)/sign-in' as never)}
+            onPress={() => router.replace('/(auth)/sign-in')}
             fullWidth size="lg" style={styles.btn}
           />
         </View>

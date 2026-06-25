@@ -1,17 +1,23 @@
-import React, { useRef, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Animated, Dimensions, Image, Linking,
-} from 'react-native';
-import { router } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useScanStore } from '@/stores/scan';
+import { AuthenticityBadge } from '@/components/Badge';
+import GlassCard from '@/components/GlassCard';
 import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
-import { AuthenticityBadge } from '@/components/Badge';
-import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { formatPrice } from '@/utils/format';
+import { useScanStore } from '@/stores/scan';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import type { Seller } from '@/types';
+import { formatPrice } from '@/utils/format';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { BlurView } from 'expo-blur';
+import { router } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import {
+    Animated, Dimensions, Image, Linking, Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
@@ -57,7 +63,7 @@ export default function ScanResultScreen() {
   const handleRecommendations = () => {
     selectProduct(product);
     loadRecommendations(product.id);
-    router.push('/recommendations' as never);
+    router.push('/recommendations');
   };
 
   return (
@@ -67,6 +73,10 @@ export default function ScanResultScreen() {
       </Animated.View>
 
       <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
+        {/* Liquid glass background for the sheet */}
+        {Platform.OS === 'ios' && (
+          <BlurView intensity={60} tint="systemChromeMaterial" style={[StyleSheet.absoluteFill, styles.sheetBlur]} />
+        )}
         <View style={styles.handle} />
 
         {/* Header row */}
@@ -128,18 +138,20 @@ export default function ScanResultScreen() {
 
           {/* Price comparison */}
           {(currentPrice > 0 || bestPrice > 0) && (
-            <View style={styles.priceCard}>
-              <View style={styles.priceItem}>
-                <Text style={styles.priceLabel}>Current Price</Text>
-                <Text style={styles.currentPrice}>{formatPrice(currentPrice, product.currency)}</Text>
+            <GlassCard padded={false} intensity={40} style={styles.priceCard}>
+              <View style={styles.priceCardInner}>
+                <View style={styles.priceItem}>
+                  <Text style={styles.priceLabel}>Current Price</Text>
+                  <Text style={styles.currentPrice}>{formatPrice(currentPrice, product.currency)}</Text>
+                </View>
+                <View style={styles.priceDivider} />
+                <View style={styles.priceItem}>
+                  <Text style={styles.priceLabel}>Best Nearby</Text>
+                  <Text style={styles.bestPrice}>{formatPrice(bestPrice, product.currency)}</Text>
+                  {savings > 0 && <Text style={styles.savingsText}>Save {formatPrice(savings)}</Text>}
+                </View>
               </View>
-              <View style={styles.priceDivider} />
-              <View style={styles.priceItem}>
-                <Text style={styles.priceLabel}>Best Nearby</Text>
-                <Text style={styles.bestPrice}>{formatPrice(bestPrice, product.currency)}</Text>
-                {savings > 0 && <Text style={styles.savingsText}>Save {formatPrice(savings)}</Text>}
-              </View>
-            </View>
+            </GlassCard>
           )}
 
           {/* Where to buy — sellers */}
@@ -227,9 +239,19 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
   sheet: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    height: SHEET_HEIGHT, backgroundColor: Colors.white,
+    height: SHEET_HEIGHT,
+    backgroundColor: Platform.OS === 'ios' ? 'rgba(250,245,238,0.85)' : Colors.white,
     borderTopLeftRadius: Radii.xxl, borderTopRightRadius: Radii.xxl,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.5)',
+    overflow: 'hidden',
     ...Shadows.lg,
+  },
+  sheetBlur: {
+    borderTopLeftRadius: Radii.xxl,
+    borderTopRightRadius: Radii.xxl,
   },
   handle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
@@ -253,7 +275,8 @@ const styles = StyleSheet.create({
   dangerBox: { backgroundColor: Colors.danger + '15', borderLeftColor: Colors.danger },
   warningText: { flex: 1, fontSize: Typography.sizes.sm, color: Colors.warning, lineHeight: 20 },
   dangerText: { color: Colors.danger },
-  priceCard: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: Radii.card, padding: Spacing.lg },
+  priceCard: { borderRadius: Radii.card },
+  priceCardInner: { flexDirection: 'row', padding: Spacing.lg },
   priceItem: { flex: 1, alignItems: 'center', gap: 2 },
   priceLabel: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium, textTransform: 'uppercase', letterSpacing: 0.3 },
   currentPrice: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.text },

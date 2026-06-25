@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { productService } from '@/services/products';
 import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
-import { productService } from '@/services/products';
-import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { getInitials, formatPrice } from '@/utils/format';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import type { InventoryItem } from '@/types';
+import { formatPrice, getInitials } from '@/utils/format';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface RowItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -58,15 +58,15 @@ export default function ProfileScreen() {
   const sellerTotalStock = inventory.reduce((s, i) => s + i.stock, 0);
 
   const consumerRows: RowItem[] = [
-    { icon: 'time-outline', label: 'Scan history', onPress: () => router.push('/scan-history' as never) },
+    { icon: 'time-outline', label: 'Scan history', onPress: () => router.push('/scan-history') },
     { icon: 'bookmark-outline', label: 'Saved products', onPress: () => router.push('/(tabs)/saved') },
-    { icon: 'notifications-outline', label: 'Notifications', onPress: () => router.push('/notifications' as never), badge: unreadNotificationsCount },
-    { icon: 'help-circle-outline', label: 'Help & support', onPress: () => router.push('/help' as never) },
+    { icon: 'notifications-outline', label: 'Notifications', onPress: () => router.push('/notifications'), badge: unreadNotificationsCount },
+    { icon: 'help-circle-outline', label: 'Help & support', onPress: () => router.push('/help') },
   ];
 
   const sellerRows: RowItem[] = [
-    { icon: 'cube-outline', label: 'Manage inventory', onPress: () => router.push('/seller-inventory' as never) },
-    { icon: 'list-outline', label: 'My listings', onPress: () => router.push('/seller-inventory' as never) },
+    { icon: 'cube-outline', label: 'Manage inventory', onPress: () => router.push('/seller-inventory') },
+    { icon: 'list-outline', label: 'My listings', onPress: () => router.push('/seller-inventory') },
     { icon: 'add-circle-outline', label: 'Add product', onPress: () => router.push('/(tabs)/scan') },
   ];
 
@@ -76,7 +76,7 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.pageTitle}>Profile</Text>
-          <TouchableOpacity onPress={() => router.push('/settings' as never)} style={styles.settingsBtn}>
+          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsBtn}>
             <Ionicons name="settings-outline" size={22} color={Colors.text} />
           </TouchableOpacity>
         </View>
@@ -91,7 +91,7 @@ export default function ProfileScreen() {
           <View style={styles.rolePill}>
             <Text style={styles.roleText}>{user.role === 'seller' ? 'Seller' : 'Consumer'}</Text>
           </View>
-          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/edit-profile' as never)}>
+          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/edit-profile')}>
             <Text style={styles.editBtnText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>

@@ -6,17 +6,17 @@
  * Steps 2 & 3 are handled by verify-otp.tsx → reset-password.tsx.
  */
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { authService } from '@/services/auth';
 import Button from '@/components/Button';
-import Input from '@/components/Input';
 import Chip from '@/components/Chip';
+import Input from '@/components/Input';
+import { authService } from '@/services/auth';
 import { Colors, Spacing, Typography } from '@/theme';
 import type { OtpChannel } from '@/types';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ForgotPasswordScreen() {
   const [channel, setChannel] = useState<OtpChannel>('sms');
@@ -50,8 +50,8 @@ export default function ForgotPasswordScreen() {
     }
 
     router.push({
-      pathname: '/(auth)/verify-otp' as never,
-      params: { contact: normalised, channel, purpose: 'reset-password' } as never,
+      pathname: '/(auth)/verify-otp',
+      params: { contact: normalised, channel, purpose: 'reset-password' },
     });
   };
 

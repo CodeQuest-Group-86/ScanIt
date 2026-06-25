@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { router, Link } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Button from '@/components/Button';
-import Input from '@/components/Input';
 import Chip from '@/components/Chip';
+import GlassCard from '@/components/GlassCard';
+import Input from '@/components/Input';
 import { authService } from '@/services/auth';
+import { Colors, Radii, Spacing, Typography } from '@/theme';
 import type { Role } from '@/types';
-import { Colors, Spacing, Typography } from '@/theme';
+import { Link, router } from 'expo-router';
+import React, { useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
@@ -53,7 +54,7 @@ export default function SignUpScreen() {
     }
 
     router.push({
-      pathname: '/(auth)/verify-otp' as never,
+      pathname: '/(auth)/verify-otp',
       params: {
         contact: phone.replace(/\s/g, ''),
         channel: 'sms',
@@ -63,7 +64,7 @@ export default function SignUpScreen() {
         password,
         role,
         devCode: res.data?.devCode ?? '',
-      } as never,
+      },
     });
   };
 
@@ -80,6 +81,7 @@ export default function SignUpScreen() {
         </View>
 
         <View style={styles.form}>
+          <GlassCard intensity={50} tint="light" style={styles.glassForm}>
           <View style={styles.roleSection}>
             <Text style={styles.roleLabel}>I am a</Text>
             <View style={styles.roleRow}>
@@ -95,6 +97,7 @@ export default function SignUpScreen() {
           <Input label="Confirm Password" placeholder="••••••••" value={confirm} onChangeText={setConfirm} isPassword leftIcon="lock-closed-outline" error={errors.confirm} />
 
           <Button label="Send Verification Code" onPress={handleSignUp} loading={loading} fullWidth size="lg" />
+          </GlassCard>
         </View>
 
         <View style={styles.footer}>
@@ -120,6 +123,7 @@ const styles = StyleSheet.create({
   logoIt: { fontSize: Typography.sizes.xxxl, fontWeight: Typography.weights.extrabold, color: Colors.primary },
   tagline: { fontSize: Typography.sizes.lg, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
   form: { gap: Spacing.lg },
+  glassForm: { gap: Spacing.lg },
   roleSection: { gap: Spacing.sm },
   roleLabel: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.medium, color: Colors.text },
   roleRow: { flexDirection: 'row', gap: Spacing.md },

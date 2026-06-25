@@ -12,24 +12,24 @@
  *   name / password / role — forwarded from sign-up for final account creation
  */
 
-import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import Button from '@/components/Button';
 import { authService } from '@/services/auth';
 import { useAuthStore } from '@/stores/auth';
-import Button from '@/components/Button';
-import { Colors, Spacing, Typography, Radii } from '@/theme';
+import { Colors, Radii, Spacing, Typography } from '@/theme';
 import type { OtpChannel } from '@/types';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
@@ -109,8 +109,8 @@ export default function VerifyOtpScreen() {
       const resetToken = res.data?.resetToken ?? '';
       setLoading(false);
       router.replace({
-        pathname: '/(auth)/reset-password' as never,
-        params: { contact, resetToken } as never,
+        pathname: '/(auth)/reset-password',
+        params: { contact, resetToken },
       });
       return;
     }
@@ -125,7 +125,7 @@ export default function VerifyOtpScreen() {
 
     setLoading(false);
     if (ok) {
-      router.replace('/(tabs)/explore' as never);
+      router.replace('/(tabs)/explore');
     } else {
       setError('Account creation failed. Please try again.');
     }

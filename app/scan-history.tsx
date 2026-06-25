@@ -1,16 +1,16 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { useScanStore } from '@/stores/scan';
+import { AuthenticityBadge } from '@/components/Badge';
+import EmptyState from '@/components/EmptyState';
 import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
-import EmptyState from '@/components/EmptyState';
-import { AuthenticityBadge } from '@/components/Badge';
-import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { formatRelativeTime, formatPrice } from '@/utils/format';
+import { useScanStore } from '@/stores/scan';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import type { ScanResult } from '@/types';
+import { formatPrice, formatRelativeTime } from '@/utils/format';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router } from 'expo-router';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ScanHistoryScreen() {
   const { history, loadHistory } = useScanStore();
@@ -56,7 +56,7 @@ export default function ScanHistoryScreen() {
               scan={item}
               onPress={() => {
                 selectProduct(item.product);
-                router.push('/product-detail' as never);
+                router.push('/product-detail');
               }}
             />
           )}

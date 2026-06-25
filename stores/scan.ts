@@ -1,7 +1,7 @@
-import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { ScanResult, AIAnalysisResult } from '@/types';
 import { scanService } from '@/services/scan';
+import type { AIAnalysisResult, ScanResult } from '@/types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { create } from 'zustand';
 
 const MAX_HISTORY = 50;
 const HISTORY_KEY = 'scanit_scan_history';
@@ -58,7 +58,7 @@ interface ScanState {
   clearResult: () => void;
   toggleFlash: () => void;
   resetSession: () => void;
-  loadHistory: (userId: string) => Promise<void>;
+  loadHistory: () => Promise<void>;
   initQuota: () => Promise<void>;
   dismissPaywall: () => void;
 }
@@ -202,9 +202,9 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   dismissPaywall: () => set({ showPaywall: false }),
 
-  loadHistory: async (userId) => {
+  loadHistory: async () => {
     try {
-      const res = await scanService.getScanHistory(userId);
+      const res = await scanService.getScanHistory();
       if (res.success && res.data && res.data.length > 0) {
         const merged = res.data;
         await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(merged));

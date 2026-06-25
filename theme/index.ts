@@ -157,5 +157,23 @@ export const Theme = {
   shadows: Shadows,
 } as const;
 
+/** Liquid glass preset tokens */
+export const Glass = {
+  /** Default card blur intensity (iOS BlurView) */
+  intensity: 55,
+  /** Warm tint matching the app's surface palette */
+  tint: 'light' as const,
+  /** Inner border highlight colour */
+  borderColor: 'rgba(255,255,255,0.55)',
+  /** Android fallback background */
+  androidBg: 'rgba(250,240,228,0.82)',
+  /** Sheet / modal blur intensity */
+  sheetIntensity: 65,
+  /** Stat card intensity */
+  statIntensity: 45,
+  /** Form card intensity */
+  formIntensity: 50,
+} as const;
+
 export type ThemeColors = typeof Colors;
 export type ThemeSpacing = typeof Spacing;

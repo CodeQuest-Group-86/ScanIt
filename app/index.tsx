@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/stores/auth';
 import { Colors } from '@/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
+import { useEffect } from 'react';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 export default function EntryPoint() {
   const { isInitialized, user } = useAuthStore();
@@ -14,11 +14,11 @@ export default function EntryPoint() {
     const check = async () => {
       const onboardingDone = await AsyncStorage.getItem('scanit_onboarding_complete');
       if (!onboardingDone) {
-        router.replace('/(onboarding)' as never);
+        router.replace('/(onboarding)');
       } else if (user) {
-        router.replace('/(tabs)/explore' as never);
+        router.replace('/(tabs)/explore');
       } else {
-        router.replace('/(auth)/sign-in' as never);
+        router.replace('/(auth)/sign-in');
       }
     };
     check();
