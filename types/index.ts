@@ -37,6 +37,7 @@ export interface Seller {
   distance: string;
   phone: string;
   whatsapp: string;
+  url?: string;
   verified: boolean;
   rating: number;
   reviewCount: number;

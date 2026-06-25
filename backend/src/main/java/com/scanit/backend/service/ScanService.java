@@ -1,5 +1,9 @@
 package com.scanit.backend.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scanit.backend.dto.ProductDto;
+import com.scanit.backend.dto.SellerDto;
 import com.scanit.backend.dto.ScanResultDto;
 import com.scanit.backend.entity.Product;
 import com.scanit.backend.entity.ScanResult;
@@ -13,7 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,29 +41,34 @@ public class ScanService {
 
     // ── Analyze image ─────────────────────────────────────────────────────────
 
-    /**
-     * Matches a scanned image to a product in the database.
-     *
-     * The mobile app sends an imageUri plus an optional imageLabel detected
-     * by the on-device AI models (HuggingFace Vision, TFLite, MobileNet).
-     *
-     * Matching strategy (in order):
-     *   1. If imageLabel is provided: keyword-search products by label words
-     *   2. If category keywords found in label: filter by category
-     *   3. Fallback: deterministic hash of imageUri picks a product (consistent demo)
-     *
-     * Production upgrade: replace step 3 with a call to Google Vision Product
-     * Search or a fine-tuned classification model served on HuggingFace/Railway.
-     */
     @Transactional
     public ScanResultDto analyzeImage(String userEmail, byte[] imageBytes, String mimeType) {
         User user = findUser(userEmail);
 
-        // Ask Gemini Vision to identify the product
+        // Step 1: Vision — identify the product
         GeminiService.ProductInfo gemini = geminiService.identifyProduct(imageBytes, mimeType);
-
         Product matched = findOrCreateProduct(gemini);
-        double confidence = gemini != null ? 92.0 : 70.0;
+
+        // Step 2: Text — research specs, prices, and Ghana sellers
+        GeminiService.ProductResearch research = null;
+        try {
+            research = geminiService.researchProduct(gemini.name(), gemini.brand(), gemini.category());
+        } catch (Exception e) {
+            log.warn("Product research failed, returning basic data: {}", e.getMessage());
+        }
+
+        // Persist updated specs/price to the product record
+        if (research != null) {
+            if (research.specs() != null && !research.specs().isEmpty()) {
+                matched.setSpecs(research.specs());
+            }
+            if (research.priceTypical() > 0 && matched.getPrice() == 0) {
+                matched.setPrice(research.priceTypical());
+            }
+            productRepository.save(matched);
+        }
+
+        double confidence = 92.0;
 
         ScanResult saved = scanResultRepository.save(
                 ScanResult.builder()
@@ -69,29 +84,54 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Scan complete — user={} product={} confidence={}", userEmail, matched.getName(), confidence);
-        return toDto(saved);
+        return toDto(saved, research);
     }
 
     // ── Barcode lookup ────────────────────────────────────────────────────────
 
-    /**
-     * Look up a product by its barcode.
-     * Barcode scans are 99% accurate — no AI inference needed.
-     * The scan is saved to the user's history just like a camera scan.
-     */
     @Transactional
     public ScanResultDto findByBarcode(String userEmail, String barcode) {
         User user = findUser(userEmail);
 
+        // 1. Check local DB first
         List<Product> products = productRepository.findByBarcode(barcode);
-        if (products.isEmpty()) {
-            throw new ResourceNotFoundException(
-                    "No product found with barcode: " + barcode +
-                    ". Add this product to the database."
-            );
-        }
+        Product product;
 
-        Product product = products.get(0);
+        if (!products.isEmpty()) {
+            product = products.get(0);
+            log.debug("Barcode {} found in local DB: {}", barcode, product.getName());
+        } else {
+            // 2. Fallback: Open Food Facts API
+            log.info("Barcode {} not in local DB — querying Open Food Facts", barcode);
+            product = fetchFromOpenFoodFacts(barcode);
+
+            // 3. Research the found product for live prices/sellers
+            GeminiService.ProductResearch research = null;
+            try {
+                research = geminiService.researchProduct(product.getName(), product.getBrand(), product.getCategory());
+                if (research != null && research.priceTypical() > 0) {
+                    product.setPrice(research.priceTypical());
+                }
+                productRepository.save(product);
+            } catch (Exception e) {
+                log.warn("Research failed for barcode product: {}", e.getMessage());
+                productRepository.save(product);
+            }
+
+            ScanResult saved = scanResultRepository.save(
+                    ScanResult.builder()
+                            .user(user)
+                            .product(product)
+                            .confidence(95.0)
+                            .authenticityStatus(product.getAuthenticity())
+                            .imageUri("barcode:" + barcode)
+                            .build()
+            );
+            user.setScansCount(user.getScansCount() + 1);
+            userRepository.save(user);
+            log.debug("Barcode via OFF — user={} barcode={} product={}", userEmail, barcode, product.getName());
+            return toDto(saved, research);
+        }
 
         ScanResult saved = scanResultRepository.save(
                 ScanResult.builder()
@@ -107,8 +147,72 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Barcode scan — user={} barcode={} product={}", userEmail, barcode, product.getName());
+        return toDto(saved, null);
+    }
 
-        return toDto(saved);
+    /** Fetch product info from Open Food Facts and auto-create it in the local DB. */
+    private Product fetchFromOpenFoodFacts(String barcode) {
+        try {
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://world.openfoodfacts.org/api/v2/product/" + barcode + ".json?fields=product_name,brands,categories_tags,image_url,quantity,nutriments"))
+                    .header("User-Agent", "ScanIt/1.0 (contact@scanit.app)")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+
+            if (resp.statusCode() != 200) {
+                throw new ResourceNotFoundException("Barcode not found: " + barcode);
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(resp.body());
+
+            int status = root.path("status").asInt(0);
+            if (status != 1) {
+                throw new ResourceNotFoundException("Barcode not recognised: " + barcode);
+            }
+
+            JsonNode p = root.path("product");
+            String name = p.path("product_name").asText("Unknown Product");
+            String brand = p.path("brands").asText("Unknown");
+            String imageUrl = p.path("image_url").asText(null);
+
+            // Flatten categories: "en:beverages,en:sodas" → "Beverages"
+            String category = "General";
+            JsonNode cats = p.path("categories_tags");
+            if (cats.isArray() && cats.size() > 0) {
+                String raw = cats.get(0).asText("");
+                if (raw.contains(":")) raw = raw.split(":")[1];
+                category = raw.substring(0, 1).toUpperCase() + raw.substring(1).replace("-", " ");
+            }
+
+            if (name.isBlank()) name = "Product " + barcode;
+            if (brand.isBlank()) brand = "Unknown";
+
+            return productRepository.save(Product.builder()
+                    .name(name.substring(0, 1).toUpperCase() + name.substring(1))
+                    .brand(brand)
+                    .category(category)
+                    .description("Scanned from barcode " + barcode + " via Open Food Facts.")
+                    .imageUrl(imageUrl)
+                    .price(0.0)
+                    .currency("GHS")
+                    .origin("Ghana")
+                    .barcode(barcode)
+                    .verified(false)
+                    .authenticity(com.scanit.backend.enums.AuthenticityStatus.AUTHENTIC)
+                    .build());
+
+        } catch (ResourceNotFoundException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Open Food Facts lookup failed for barcode {}: {}", barcode, e.getMessage());
+            throw new ResourceNotFoundException("Barcode not found: " + barcode + ". Ensure the barcode is clear and try again.");
+        }
     }
 
     // ── History ───────────────────────────────────────────────────────────────
@@ -117,7 +221,7 @@ public class ScanService {
     public List<ScanResultDto> getScanHistory(String userEmail) {
         User user = findUser(userEmail);
         return scanResultRepository.findByUserOrderByScannedAtDesc(user)
-                .stream().map(this::toDto).collect(Collectors.toList());
+                .stream().map(r -> toDto(r, null)).collect(Collectors.toList());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -169,10 +273,55 @@ public class ScanService {
 
     // ── DTO mapping ───────────────────────────────────────────────────────────
 
-    private ScanResultDto toDto(ScanResult r) {
+    private ScanResultDto toDto(ScanResult r, GeminiService.ProductResearch research) {
+        ProductDto base = productService.toDto(r.getProduct());
+
+        ProductDto productDto = base;
+        if (research != null) {
+            // Build dynamic sellers from research
+            List<SellerDto> dynamicSellers = research.sellers().stream()
+                    .filter(s -> s.name() != null && !s.name().isBlank())
+                    .map(s -> SellerDto.builder()
+                            .id(UUID.randomUUID().toString())
+                            .name(s.name())
+                            .location(s.location())
+                            .distance("N/A")
+                            .phone("")
+                            .whatsapp("")
+                            .url(s.url() != null && !s.url().isBlank() ? s.url() : null)
+                            .verified(true)
+                            .rating(0.0)
+                            .reviewCount(0)
+                            .price(s.price())
+                            .build())
+                    .collect(Collectors.toList());
+
+            // Merge: DB sellers first, then dynamic research sellers
+            List<SellerDto> allSellers = new ArrayList<>(base.getSellers());
+            allSellers.addAll(dynamicSellers);
+
+            productDto = ProductDto.builder()
+                    .id(base.getId())
+                    .name(base.getName())
+                    .brand(base.getBrand())
+                    .category(base.getCategory())
+                    .description(base.getDescription())
+                    .imageUrl(base.getImageUrl())
+                    .price(research.priceTypical() > 0 ? research.priceTypical() : base.getPrice())
+                    .currency(base.getCurrency())
+                    .origin(base.getOrigin())
+                    .specs(research.specs() != null && !research.specs().isEmpty()
+                            ? research.specs() : base.getSpecs())
+                    .barcode(base.getBarcode())
+                    .verified(base.isVerified())
+                    .authenticity(base.getAuthenticity())
+                    .sellers(allSellers)
+                    .build();
+        }
+
         return ScanResultDto.builder()
                 .id(r.getId())
-                .product(productService.toDto(r.getProduct()))
+                .product(productDto)
                 .confidence(r.getConfidence())
                 .scannedAt(r.getScannedAt() != null ? r.getScannedAt().toString() : Instant.now().toString())
                 .authenticityStatus(r.getAuthenticityStatus().name().toLowerCase())

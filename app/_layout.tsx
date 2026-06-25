@@ -4,14 +4,17 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAuthStore } from '@/stores/auth';
 import { useSavedStore } from '@/stores/saved';
+import { useScanStore } from '@/stores/scan';
 
 export default function RootLayout() {
   const initialize = useAuthStore(s => s.initialize);
   const loadSaved = useSavedStore(s => s.load);
+  const initQuota = useScanStore(s => s.initQuota);
 
   useEffect(() => {
     initialize();
     loadSaved();
+    initQuota();
   }, []);
 
   return (

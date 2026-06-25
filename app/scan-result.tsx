@@ -71,9 +71,6 @@ export default function ScanResultScreen() {
 
         {/* Header row */}
         <View style={styles.headerRow}>
-          <View style={styles.detectedBadge}>
-            <Text style={styles.detectedText}>DETECTED · {formatConfidence(confidence)}</Text>
-          </View>
           <TouchableOpacity onPress={() => saved ? remove(product.id) : save(product)} style={styles.saveBtn}>
             <Ionicons name={saved ? 'bookmark' : 'bookmark-outline'} size={22} color={saved ? Colors.primary : Colors.textSecondary} />
           </TouchableOpacity>
@@ -87,7 +84,7 @@ export default function ScanResultScreen() {
           {/* Product image + identity */}
           <View style={styles.productRow}>
             <Image
-              source={{ uri: product.imageUrl || `https://placehold.co/100x100/E76F2E/FFFFFF/png?text=${encodeURIComponent(product.name[0])}` }}
+              source={{ uri: product.imageUrl || currentResult.imageUri || `https://placehold.co/100x100/E76F2E/FFFFFF/png?text=${encodeURIComponent(product.name[0])}` }}
               style={styles.productImage}
               resizeMode="cover"
             />
@@ -191,6 +188,11 @@ function SellerRow({ seller, currency }: { seller: Seller; currency: string }) {
         )}
       </View>
       <View style={sellerStyles.actions}>
+        {seller.url ? (
+          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.visitBtn]} onPress={() => Linking.openURL(seller.url!)}>
+            <Ionicons name="open-outline" size={16} color={Colors.white} />
+          </TouchableOpacity>
+        ) : null}
         {seller.phone && (
           <TouchableOpacity style={sellerStyles.btn} onPress={() => Linking.openURL(`tel:${seller.phone}`)}>
             <Ionicons name="call" size={16} color={Colors.white} />
@@ -218,6 +220,7 @@ const sellerStyles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: Spacing.sm },
   btn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   waBtn: { backgroundColor: '#25D366' },
+  visitBtn: { backgroundColor: Colors.accent },
 });
 
 const styles = StyleSheet.create({
@@ -229,7 +232,7 @@ const styles = StyleSheet.create({
     ...Shadows.lg,
   },
   handle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginTop: Spacing.md, marginBottom: Spacing.xs },
-  headerRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
   detectedBadge: { flex: 1, backgroundColor: Colors.accent + '20', paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radii.pill, alignSelf: 'flex-start' },
   detectedText: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.accent, letterSpacing: 0.5 },
   saveBtn: { padding: Spacing.sm },

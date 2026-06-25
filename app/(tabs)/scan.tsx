@@ -27,6 +27,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useScanStore } from '@/stores/scan';
 import ScanBracket from '@/components/ScanBracket';
+import PaywallModal from '@/components/PaywallModal';
 import { Colors, Spacing, Typography, Radii } from '@/theme';
 
 type ScanMode = 'barcode' | 'photo';
@@ -45,6 +46,9 @@ export default function ScanScreen() {
     analyzingStage,
     error,
     offlineMode,
+    dailyScansUsed,
+    dailyScansLimit,
+    isPremium,
   } = useScanStore();
 
   const scanLineAnim = useRef(new Animated.Value(0)).current;
@@ -160,8 +164,12 @@ export default function ScanScreen() {
     outputRange: [0, 200],
   });
 
+  const scansLeft = Math.max(0, dailyScansLimit - dailyScansUsed);
+
   return (
     <View style={styles.container}>
+      <PaywallModal />
+
       {/* Camera — barcode scanning active only in barcode mode */}
       <CameraView
         ref={cameraRef}
@@ -188,6 +196,14 @@ export default function ScanScreen() {
           <Text style={styles.modeLabel}>
             {mode === 'barcode' ? 'Barcode Mode' : 'Photo Mode'}
           </Text>
+          {!isPremium && (
+            <View style={[styles.quotaBadge, scansLeft === 0 && styles.quotaBadgeEmpty]}>
+              <Ionicons name="scan-outline" size={10} color={scansLeft === 0 ? Colors.danger : Colors.white} />
+              <Text style={[styles.quotaText, scansLeft === 0 && styles.quotaTextEmpty]}>
+                {scansLeft === 0 ? 'Limit reached' : `${scansLeft} scan${scansLeft === 1 ? '' : 's'} left`}
+              </Text>
+            </View>
+          )}
         </View>
 
         <TouchableOpacity onPress={toggleFlash} style={styles.topBtn}>
@@ -325,8 +341,12 @@ const styles = StyleSheet.create({
   // Top bar
   topBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, zIndex: 10 },
   topBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  modeToggle: { alignItems: 'center' },
+  modeToggle: { alignItems: 'center', gap: 4 },
   modeLabel: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.white },
+  quotaBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
+  quotaBadgeEmpty: { backgroundColor: Colors.danger + '30', borderWidth: 1, borderColor: Colors.danger + '80' },
+  quotaText: { fontSize: 10, color: Colors.white, fontWeight: Typography.weights.semibold },
+  quotaTextEmpty: { color: Colors.danger },
 
   // Scan area
   scanArea: { flex: 1, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },

@@ -14,7 +14,10 @@ export const scanService = {
       formData.append('image', { uri: imageUri, name: filename, type: mimeType } as any);
 
       const backendResult = await api.postForm<ScanResult>('/scans/analyze', formData);
-      return { success: true, data: { ...backendResult, confidence: backendResult.confidence ?? 90 } };
+      const product = backendResult.product.imageUrl
+        ? backendResult.product
+        : { ...backendResult.product, imageUrl: imageUri };
+      return { success: true, data: { ...backendResult, imageUri, product, confidence: backendResult.confidence ?? 90 } };
 
     } catch (err: any) {
       const msg: string = err?.message ?? '';

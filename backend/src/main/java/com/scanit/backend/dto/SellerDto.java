@@ -16,6 +16,7 @@ public class SellerDto {
     private String distance;
     private String phone;
     private String whatsapp;
+    private String url;
     private boolean verified;
     private double rating;
     private int reviewCount;
