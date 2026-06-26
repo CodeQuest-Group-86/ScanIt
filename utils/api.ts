@@ -12,6 +12,13 @@ import * as SecureStore from 'expo-secure-store';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
 
+/** Ping the health endpoint to wake a sleeping Render instance before the user hits sign-in. */
+export async function warmUpBackend(): Promise<void> {
+  try {
+    await fetch(`${API_URL}/actuator/health`, { method: 'GET' });
+  } catch { /* ignore — best effort */ }
+}
+
 const ACCESS_TOKEN_KEY = 'scanit_access_token';
 const REFRESH_TOKEN_KEY = 'scanit_refresh_token';
 

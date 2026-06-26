@@ -21,7 +21,8 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadNotifications();
-    if (user) loadHistory(user.id);
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const greeting = () => {

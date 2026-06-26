@@ -124,13 +124,18 @@ public class GeminiService {
 
     private ProductInfo callGeminiVision(byte[] imageBytes, String mimeType) throws Exception {
         String b64 = Base64.getEncoder().encodeToString(imageBytes);
+        // thinkingConfig must be INSIDE generationConfig; thinkingBudget=0 disables thinking
+        // so parts[0] is always the real response text, not a thought block
         String body = mapper.writeValueAsString(Map.of(
             "contents", List.of(Map.of("parts", List.of(
                 Map.of("text", IDENTIFY_PROMPT),
                 Map.of("inline_data", Map.of("mime_type", mimeType, "data", b64))
             ))),
-            "generationConfig", Map.of("temperature", 0.1, "maxOutputTokens", 512),
-            "thinkingConfig", Map.of("thinkingBudget", 512)
+            "generationConfig", Map.of(
+                "temperature", 0.1,
+                "maxOutputTokens", 512,
+                "thinkingConfig", Map.of("thinkingBudget", 0)
+            )
         ));
 
         Request req = new Request.Builder()
@@ -147,8 +152,17 @@ public class GeminiService {
                 return null;
             }
             JsonNode root = mapper.readTree(respBody);
-            String text = root.path("candidates").get(0)
-                    .path("content").path("parts").get(0).path("text").asText("").trim();
+            // Skip any thought parts — find the first non-thought text part
+            JsonNode parts = root.path("candidates").get(0).path("content").path("parts");
+            String text = "";
+            if (parts.isArray()) {
+                for (JsonNode part : parts) {
+                    if (!part.path("thought").asBoolean(false)) {
+                        String t = part.path("text").asText("").trim();
+                        if (!t.isEmpty()) { text = t; break; }
+                    }
+                }
+            }
             return parseProductInfo(text);
         }
     }
@@ -188,7 +202,11 @@ public class GeminiService {
         Map<String, Object> reqMap = new HashMap<>();
         reqMap.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
         reqMap.put("tools", List.of(Map.of("google_search", Map.of())));
-        reqMap.put("generationConfig", Map.of("temperature", 0.1, "maxOutputTokens", 2048));
+        reqMap.put("generationConfig", Map.of(
+            "temperature", 0.1,
+            "maxOutputTokens", 2048,
+            "thinkingConfig", Map.of("thinkingBudget", 0)
+        ));
 
         String body = mapper.writeValueAsString(reqMap);
 

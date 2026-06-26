@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/stores/auth';
 import { Colors } from '@/theme';
+import { warmUpBackend } from '@/utils/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
@@ -7,6 +8,10 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 export default function EntryPoint() {
   const { isInitialized, user } = useAuthStore();
+
+  useEffect(() => {
+    warmUpBackend(); // fire-and-forget — wakes Render free tier in background
+  }, []);
 
   useEffect(() => {
     if (!isInitialized) return;

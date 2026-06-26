@@ -1,3 +1,4 @@
+import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
 import GlassCard from '@/components/GlassCard';
 import Input from '@/components/Input';
@@ -34,6 +35,7 @@ export default function SignInScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <AuthMotionBackground />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -97,7 +99,7 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flexGrow: 1, padding: Spacing.xl },
   header: { alignItems: 'center', paddingVertical: Spacing.section },
   logoRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: Spacing.sm },

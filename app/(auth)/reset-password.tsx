@@ -5,6 +5,7 @@
  * Receives contact + resetToken from verify-otp, lets user set a new password.
  */
 
+import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import { authService } from '@/services/auth';
@@ -48,6 +49,7 @@ export default function ResetPasswordScreen() {
   if (done) {
     return (
       <SafeAreaView style={styles.safe}>
+      <AuthMotionBackground />
         <View style={styles.center}>
           <View style={styles.iconWrap}>
             <Ionicons name="checkmark-circle-outline" size={64} color={Colors.success ?? Colors.accent} />
@@ -66,6 +68,7 @@ export default function ResetPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <AuthMotionBackground />
       <View style={styles.container}>
         <Text style={styles.title}>Set new password</Text>
         <Text style={styles.subtitle}>Choose a strong password for your account.</Text>
@@ -97,7 +100,7 @@ export default function ResetPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, padding: Spacing.xl, justifyContent: 'center' },
   center: { flex: 1, padding: Spacing.xl, alignItems: 'center', justifyContent: 'center' },
   iconWrap: {

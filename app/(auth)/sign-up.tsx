@@ -1,3 +1,4 @@
+import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
 import Chip from '@/components/Chip';
 import GlassCard from '@/components/GlassCard';
@@ -39,25 +40,25 @@ export default function SignUpScreen() {
     if (!validate()) return;
     setLoading(true);
 
-    // Send OTP to phone — backend delivers via Twilio Verify (free trial)
+    // Send OTP to email — delivered via Resend (free tier, 3,000/month)
     const res = await authService.sendOtp({
-      contact: phone.replace(/\s/g, ''),
-      channel: 'sms',
+      contact: email.trim(),
+      channel: 'email',
       purpose: 'signup',
     });
 
     setLoading(false);
 
     if (!res.success) {
-      setErrors({ phone: res.message ?? 'Failed to send OTP. Check the number and try again.' });
+      setErrors({ email: res.message ?? 'Failed to send verification code. Try again.' });
       return;
     }
 
     router.push({
       pathname: '/(auth)/verify-otp',
       params: {
-        contact: phone.replace(/\s/g, ''),
-        channel: 'sms',
+        contact: email.trim(),
+        channel: 'email',
         purpose: 'signup',
         name: name.trim(),
         email: email.trim(),
@@ -70,6 +71,7 @@ export default function SignUpScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <AuthMotionBackground />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -115,7 +117,7 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   scroll: { flexGrow: 1, padding: Spacing.xl },
   header: { alignItems: 'center', paddingVertical: Spacing.xxxl },
   logoRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: Spacing.sm },

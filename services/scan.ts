@@ -70,7 +70,7 @@ export const scanService = {
     }
   },
 
-  async getScanHistory(_userId: string): Promise<ApiResponse<ScanResult[]>> {
+  async getScanHistory(): Promise<ApiResponse<ScanResult[]>> {
     try {
       const data = await api.get<ScanResult[]>('/scans/history');
       return { success: true, data };

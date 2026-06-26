@@ -74,12 +74,17 @@ public class OtpService {
         User user = findByContact(contact)
                 .orElseThrow(() -> new BadRequestException("No pending verification for this contact"));
 
-        if (!purpose(user).equals(req.getPurpose())) {
-            throw new BadRequestException("OTP was not requested for this purpose");
+        // Check whether an OTP was ever sent (or was already used) before anything else
+        if (user.getOtpCode() == null || user.getOtpExpiry() == null || user.getOtpPurpose() == null) {
+            throw new BadRequestException("No active OTP found. Please request a new one.");
         }
 
-        if (user.getOtpExpiry() == null || Instant.now().isAfter(user.getOtpExpiry())) {
+        if (Instant.now().isAfter(user.getOtpExpiry())) {
             throw new BadRequestException("OTP has expired. Please request a new one.");
+        }
+
+        if (!user.getOtpPurpose().equals(req.getPurpose())) {
+            throw new BadRequestException("OTP was not requested for this purpose");
         }
 
         boolean valid;
@@ -196,13 +201,14 @@ public class OtpService {
 
         try (Response response = client.newCall(request).execute()) {
             if (!response.isSuccessful()) {
-                log.error("Resend failed ({}): {}", response.code(),
-                        response.body() != null ? response.body().string() : "");
-                throw new BadRequestException("Failed to send email. Please try again.");
+                String resendBody = response.body() != null ? response.body().string() : "(no body)";
+                log.error("Resend failed ({}) from='{}': {}", response.code(), resendFrom, resendBody);
+                throw new BadRequestException(
+                        "Email send failed (Resend " + response.code() + "): " + resendBody);
             }
         } catch (IOException e) {
             log.error("Resend IO error: {}", e.getMessage());
-            throw new BadRequestException("Failed to send email. Please try again.");
+            throw new BadRequestException("Failed to send email (network error): " + e.getMessage());
         }
         return null;
     }
@@ -242,20 +248,30 @@ public class OtpService {
      * For reset-password the user must already exist.
      */
     private User findOrCreatePlaceholder(String contact, String channel, String purpose) {
-        return findByContact(contact).orElseGet(() -> {
-            if ("reset-password".equals(purpose)) {
-                throw new BadRequestException("No account found for that contact");
+        java.util.Optional<User> existing = findByContact(contact);
+
+        if (existing.isPresent()) {
+            User user = existing.get();
+            // A real (non-placeholder) account already owns this contact
+            if ("signup".equals(purpose) && user.getName() != null && !user.getName().isBlank()) {
+                throw new BadRequestException("An account with that email already exists. Please sign in.");
             }
-            // Create placeholder — no password yet, filled during sign-up
-            User placeholder = User.builder()
-                    .name("")
-                    .email("sms".equalsIgnoreCase(channel) ? contact + "@placeholder.scanit" : contact)
-                    .phoneNumber(contact)
-                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
-                    .role(com.scanit.backend.enums.UserRole.CONSUMER)
-                    .build();
-            return userRepository.save(placeholder);
-        });
+            return user;
+        }
+
+        if ("reset-password".equals(purpose)) {
+            throw new BadRequestException("No account found for that contact");
+        }
+
+        // Create placeholder — no password yet, filled during sign-up
+        User placeholder = User.builder()
+                .name("")
+                .email("sms".equalsIgnoreCase(channel) ? contact + "@placeholder.scanit" : contact)
+                .phoneNumber(contact)
+                .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                .role(com.scanit.backend.enums.UserRole.CONSUMER)
+                .build();
+        return userRepository.save(placeholder);
     }
 
     private java.util.Optional<User> findByContact(String contact) {

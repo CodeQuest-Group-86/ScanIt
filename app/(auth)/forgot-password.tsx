@@ -6,6 +6,7 @@
  * Steps 2 & 3 are handled by verify-otp.tsx → reset-password.tsx.
  */
 
+import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
 import Chip from '@/components/Chip';
 import Input from '@/components/Input';
@@ -57,6 +58,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <AuthMotionBackground />
       <View style={styles.container}>
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
@@ -120,7 +122,7 @@ export default function ForgotPasswordScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, padding: Spacing.xl },
   back: { marginBottom: Spacing.xl, alignSelf: 'flex-start' },
   title: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text, marginBottom: Spacing.sm },

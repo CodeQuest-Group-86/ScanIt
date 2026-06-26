@@ -6,7 +6,7 @@ import { create } from 'zustand';
 const MAX_HISTORY = 50;
 const HISTORY_KEY = 'scanit_scan_history';
 const QUOTA_KEY = 'scanit_scan_quota';
-const FREE_SCANS_PER_DAY = 5;
+const FREE_SCANS_PER_DAY = 100; // TODO: restore to 5 before launch
 
 // ── Quota helpers ──────────────────────────────────────────────────────────
 

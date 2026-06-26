@@ -46,4 +46,4 @@ twilio:
 # Sign up at https://resend.com → API Keys → Create key
 resend:
   api-key: ${RESEND_API_KEY:}
-  from: ${RESEND_FROM:onboarding@resend.dev}
+  from: ${RESEND_FROM:ScanIt <onboarding@resend.dev>}

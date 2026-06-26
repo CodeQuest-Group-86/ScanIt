@@ -12,6 +12,7 @@
  *   name / password / role — forwarded from sign-up for final account creation
  */
 
+import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
 import { authService } from '@/services/auth';
 import { useAuthStore } from '@/stores/auth';
@@ -55,6 +56,8 @@ export default function VerifyOtpScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_SECONDS);
+  // Once the OTP is verified we skip re-verification on retry (e.g. if signUp fails)
+  const [otpVerified, setOtpVerified] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const { signUp } = useAuthStore();
@@ -86,6 +89,7 @@ export default function VerifyOtpScreen() {
   const handleResend = async () => {
     setResendTimer(RESEND_SECONDS);
     setError('');
+    setOtpVerified(false); // reset so the new OTP is verified fresh
     const res = await authService.sendOtp({ contact, channel, purpose });
     if (res.success && res.data?.devCode) {
       setDigits(res.data.devCode.split(''));
@@ -97,22 +101,27 @@ export default function VerifyOtpScreen() {
     setLoading(true);
     setError('');
 
-    const res = await authService.verifyOtp({ contact, code, purpose });
+    // If OTP was already verified in a previous attempt (signUp failed), skip re-verification
+    if (!otpVerified) {
+      const res = await authService.verifyOtp({ contact, code, purpose });
 
-    if (!res.success) {
-      setError(res.message ?? 'Invalid or expired code');
-      setLoading(false);
-      return;
-    }
+      if (!res.success) {
+        setError(res.message ?? 'Invalid or expired code');
+        setLoading(false);
+        return;
+      }
 
-    if (purpose === 'reset-password') {
-      const resetToken = res.data?.resetToken ?? '';
-      setLoading(false);
-      router.replace({
-        pathname: '/(auth)/reset-password',
-        params: { contact, resetToken },
-      });
-      return;
+      if (purpose === 'reset-password') {
+        const resetToken = res.data?.resetToken ?? '';
+        setLoading(false);
+        router.replace({
+          pathname: '/(auth)/reset-password',
+          params: { contact, resetToken },
+        });
+        return;
+      }
+
+      setOtpVerified(true);
     }
 
     // signup — create the account with the email forwarded from sign-up params
@@ -127,7 +136,12 @@ export default function VerifyOtpScreen() {
     if (ok) {
       router.replace('/(tabs)/explore');
     } else {
-      setError('Account creation failed. Please try again.');
+      const storeErr = useAuthStore.getState().error ?? '';
+      if (storeErr.toLowerCase().includes('already exists')) {
+        setError('This email is already registered. Please sign in instead.');
+      } else {
+        setError('Account creation failed. Please try again.');
+      }
     }
   };
 
@@ -135,6 +149,7 @@ export default function VerifyOtpScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <AuthMotionBackground />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -215,7 +230,7 @@ export default function VerifyOtpScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1, padding: Spacing.xl },
   back: { marginBottom: Spacing.xl, alignSelf: 'flex-start' },
   iconWrap: {
