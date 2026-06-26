@@ -44,20 +44,37 @@ public class AuthService {
     // ── Sign up ───────────────────────────────────────────────────────────────
 
     public AuthResponse signUp(SignUpRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("An account with that email already exists");
-        }
-
         UserRole role = UserRole.valueOf(request.getRole().toUpperCase());
 
-        User user = User.builder()
-                .name(request.getName())
-                .email(request.getEmail())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(role)
-                .build();
+        // The OTP flow pre-creates a placeholder user (name="") to store the OTP.
+        // If that placeholder exists, update it with the real data instead of rejecting.
+        java.util.Optional<User> existing = userRepository.findByEmail(request.getEmail());
 
-        user = userRepository.save(user);
+        User user;
+        if (existing.isPresent()) {
+            User placeholder = existing.get();
+            if (placeholder.getName() != null && !placeholder.getName().isBlank()) {
+                // Real account already exists — reject
+                throw new BadRequestException("An account with that email already exists");
+            }
+            // Placeholder from OTP flow — fill in real data
+            placeholder.setName(request.getName());
+            placeholder.setPassword(passwordEncoder.encode(request.getPassword()));
+            placeholder.setRole(role);
+            placeholder.setOtpCode(null);
+            placeholder.setOtpExpiry(null);
+            placeholder.setOtpPurpose(null);
+            user = userRepository.save(placeholder);
+        } else {
+            user = User.builder()
+                    .name(request.getName())
+                    .email(request.getEmail())
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .role(role)
+                    .build();
+            user = userRepository.save(user);
+        }
+
         return buildAuthResponse(user);
     }
 
