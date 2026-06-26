@@ -1,19 +1,21 @@
 import EmptyState from '@/components/EmptyState';
 import ProductCard from '@/components/ProductCard';
+import ScreenShell from '@/components/ui/ScreenShell';
+import { useTabBarInset } from '@/hooks/useTabBarInset';
 import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
 import { Colors, Spacing, Typography } from '@/theme';
 import { router } from 'expo-router';
 import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function SavedScreen() {
+  const tabBarInset = useTabBarInset();
   const { savedProducts, remove } = useSavedStore();
   const { selectProduct } = useProductsStore();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <ScreenShell>
       <View style={styles.container}>
         <Text style={styles.title}>Saved Products</Text>
         {savedProducts.length === 0 ? (
@@ -26,6 +28,7 @@ export default function SavedScreen() {
           />
         ) : (
           <FlatList
+            style={styles.list}
             data={savedProducts}
             keyExtractor={p => p.id}
             renderItem={({ item }) => (
@@ -39,18 +42,24 @@ export default function SavedScreen() {
                 isSaved
               />
             )}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[styles.listContent, { paddingBottom: tabBarInset }]}
             showsVerticalScrollIndicator={false}
           />
         )}
       </View>
-    </SafeAreaView>
+    </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
   container: { flex: 1 },
-  title: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text, padding: Spacing.lg, paddingBottom: Spacing.md },
-  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xxxl },
+  list: { flex: 1 },
+  title: {
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.extrabold,
+    color: Colors.text,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
+  listContent: { paddingHorizontal: Spacing.lg, flexGrow: 1 },
 });

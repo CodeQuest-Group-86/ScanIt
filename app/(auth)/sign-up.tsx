@@ -1,15 +1,13 @@
-import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
 import Chip from '@/components/Chip';
-import GlassCard from '@/components/GlassCard';
 import Input from '@/components/Input';
+import AuthScreenLayout from '@/components/ui/AuthScreenLayout';
 import { authService } from '@/services/auth';
-import { Colors, Radii, Spacing, Typography } from '@/theme';
+import { Colors, Spacing, Typography } from '@/theme';
 import type { Role } from '@/types';
 import { Link, router } from 'expo-router';
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SignUpScreen() {
   const [name, setName] = useState('');
@@ -40,7 +38,6 @@ export default function SignUpScreen() {
     if (!validate()) return;
     setLoading(true);
 
-    // Send OTP to email — delivered via Resend (free tier, 3,000/month)
     const res = await authService.sendOtp({
       contact: email.trim(),
       channel: 'email',
@@ -70,39 +67,13 @@ export default function SignUpScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <AuthMotionBackground />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.logoRow}>
-            <Text style={styles.logoScan}>Scan</Text>
-            <Text style={styles.logoIt}>It</Text>
-          </View>
-          <Text style={styles.tagline}>Create your account</Text>
-        </View>
-
-        <View style={styles.form}>
-          <GlassCard intensity={50} tint="light" style={styles.glassForm}>
-          <View style={styles.roleSection}>
-            <Text style={styles.roleLabel}>I am a</Text>
-            <View style={styles.roleRow}>
-              <Chip label="Consumer" active={role === 'consumer'} onPress={() => setRole('consumer')} style={styles.roleChip} />
-              <Chip label="Seller" active={role === 'seller'} onPress={() => setRole('seller')} style={styles.roleChip} />
-            </View>
-          </View>
-
-          <Input label="Full Name" placeholder="Ama Mensah" value={name} onChangeText={setName} leftIcon="person-outline" error={errors.name} autoCapitalize="words" />
-          <Input label="Email" placeholder="you@example.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" leftIcon="mail-outline" error={errors.email} />
-          <Input label="Phone Number" placeholder="+233201234567" value={phone} onChangeText={setPhone} keyboardType="phone-pad" leftIcon="call-outline" error={errors.phone} />
-          <Input label="Password" placeholder="••••••••" value={password} onChangeText={setPassword} isPassword leftIcon="lock-closed-outline" error={errors.password} />
-          <Input label="Confirm Password" placeholder="••••••••" value={confirm} onChangeText={setConfirm} isPassword leftIcon="lock-closed-outline" error={errors.confirm} />
-
-          <Button label="Send Verification Code" onPress={handleSignUp} loading={loading} fullWidth size="lg" />
-          </GlassCard>
-        </View>
-
-        <View style={styles.footer}>
+    <AuthScreenLayout
+      lottie="auth-signup"
+      title="Join ScanIt"
+      subtitle="Create your account and start scanning products across Ghana in seconds."
+      compact
+      footer={
+        <View style={styles.footerRow}>
           <Text style={styles.footerText}>Already have an account? </Text>
           <Link href="/(auth)/sign-in" asChild>
             <TouchableOpacity>
@@ -110,27 +81,33 @@ export default function SignUpScreen() {
             </TouchableOpacity>
           </Link>
         </View>
-      </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      }
+    >
+      <View style={styles.roleSection}>
+        <Text style={styles.roleLabel}>I am a</Text>
+        <View style={styles.roleRow}>
+          <Chip label="Consumer" active={role === 'consumer'} onPress={() => setRole('consumer')} style={styles.roleChip} />
+          <Chip label="Seller" active={role === 'seller'} onPress={() => setRole('seller')} style={styles.roleChip} />
+        </View>
+      </View>
+
+      <Input label="Full Name" placeholder="Ama Mensah" value={name} onChangeText={setName} leftIcon="person-outline" error={errors.name} autoCapitalize="words" />
+      <Input label="Email" placeholder="you@example.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" leftIcon="mail-outline" error={errors.email} />
+      <Input label="Phone Number" placeholder="+233201234567" value={phone} onChangeText={setPhone} keyboardType="phone-pad" leftIcon="call-outline" error={errors.phone} />
+      <Input label="Password" placeholder="••••••••" value={password} onChangeText={setPassword} isPassword leftIcon="lock-closed-outline" error={errors.password} />
+      <Input label="Confirm Password" placeholder="••••••••" value={confirm} onChangeText={setConfirm} isPassword leftIcon="lock-closed-outline" error={errors.confirm} />
+
+      <Button label="Send Verification Code" onPress={handleSignUp} loading={loading} fullWidth size="lg" />
+    </AuthScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: 'transparent' },
-  scroll: { flexGrow: 1, padding: Spacing.xl },
-  header: { alignItems: 'center', paddingVertical: Spacing.xxxl },
-  logoRow: { flexDirection: 'row', alignItems: 'baseline', marginBottom: Spacing.sm },
-  logoScan: { fontSize: Typography.sizes.xxxl, fontWeight: Typography.weights.extrabold, color: Colors.text },
-  logoIt: { fontSize: Typography.sizes.xxxl, fontWeight: Typography.weights.extrabold, color: Colors.primary },
-  tagline: { fontSize: Typography.sizes.lg, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
-  form: { gap: Spacing.lg },
-  glassForm: { gap: Spacing.lg },
   roleSection: { gap: Spacing.sm },
   roleLabel: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.medium, color: Colors.text },
   roleRow: { flexDirection: 'row', gap: Spacing.md },
   roleChip: { flex: 1 },
-  footer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingTop: Spacing.xl },
+  footerRow: { flexDirection: 'row', alignItems: 'center' },
   footerText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
   link: { fontSize: Typography.sizes.md, color: Colors.primary, fontWeight: Typography.weights.bold },
 });

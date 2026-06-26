@@ -7,8 +7,9 @@ import { formatPrice, getInitials } from '@/utils/format';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import ScreenShell from '@/components/ui/ScreenShell';
+import TabScrollView from '@/components/ui/TabScrollView';
 
 interface RowItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -71,8 +72,8 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <ScreenShell>
+      <TabScrollView contentContainerStyle={styles.scroll}>
         {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.pageTitle}>Profile</Text>
@@ -155,8 +156,8 @@ export default function ProfileScreen() {
           <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
           <Text style={styles.signOutText}>Sign Out</Text>
         </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      </TabScrollView>
+    </ScreenShell>
   );
 }
 
@@ -182,7 +183,7 @@ function RowButton({ item, last }: { item: RowItem; last: boolean }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.surface },
-  scroll: { padding: Spacing.lg, paddingBottom: Spacing.xxxl },
+  scroll: { padding: Spacing.lg, flexGrow: 1 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xl },
   pageTitle: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text },
   settingsBtn: { padding: Spacing.sm },

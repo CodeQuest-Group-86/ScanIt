@@ -1,6 +1,5 @@
 import { AuthenticityBadge } from '@/components/Badge';
 import EmptyState from '@/components/EmptyState';
-import { useAuthStore } from '@/stores/auth';
 import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
 import { useScanStore } from '@/stores/scan';
@@ -21,10 +20,11 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import ScreenShell from '@/components/ui/ScreenShell';
+import { useTabBarInset } from '@/hooks/useTabBarInset';
 
 export default function HistoryScreen() {
-  const { user } = useAuthStore();
+  const tabBarInset = useTabBarInset();
   const { history, loadHistory, isAnalyzing } = useScanStore();
   const { selectProduct } = useProductsStore();
   const { save, remove, isSaved } = useSavedStore();
@@ -32,8 +32,8 @@ export default function HistoryScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
 
   const load = useCallback(async () => {
-    if (user) await loadHistory(user.id);
-  }, [user]);
+    await loadHistory();
+  }, [loadHistory]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -44,47 +44,54 @@ export default function HistoryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Scan History</Text>
-        <Text style={styles.subtitle}>{history.length} scan{history.length !== 1 ? 's' : ''}</Text>
-      </View>
-
-      {isAnalyzing && (
-        <View style={styles.analyzingBanner}>
-          <ActivityIndicator size="small" color={Colors.white} />
-          <Text style={styles.analyzingText}>Analyzing scan…</Text>
+    <ScreenShell>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Scan History</Text>
+          <Text style={styles.subtitle}>{history.length} scan{history.length !== 1 ? 's' : ''}</Text>
         </View>
-      )}
 
-      <FlatList
-        data={history}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <ScanCard
-            scan={item}
-            saved={isSaved(item.product.id)}
-            onPress={() => {
-              selectProduct(item.product);
-              router.push('/product-detail');
-            }}
-            onSave={() => isSaved(item.product.id) ? remove(item.product.id) : save(item.product)}
-          />
+        {isAnalyzing && (
+          <View style={styles.analyzingBanner}>
+            <ActivityIndicator size="small" color={Colors.white} />
+            <Text style={styles.analyzingText}>Analyzing scan…</Text>
+          </View>
         )}
-        contentContainerStyle={history.length === 0 ? styles.emptyContainer : styles.list}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-        ListEmptyComponent={
-          <EmptyState
-            icon="scan-outline"
-            title="No scans yet"
-            description="Scan a product to see its price, where to buy it, and whether it's authentic."
-            actionLabel="Scan Now"
-            onAction={() => router.push('/(tabs)/scan')}
-          />
-        }
-      />
-    </SafeAreaView>
+
+        <FlatList
+          style={styles.list}
+          data={history}
+          keyExtractor={item => item.id}
+          renderItem={({ item }) => (
+            <ScanCard
+              scan={item}
+              saved={isSaved(item.product.id)}
+              onPress={() => {
+                selectProduct(item.product);
+                router.push('/product-detail');
+              }}
+              onSave={() => isSaved(item.product.id) ? remove(item.product.id) : save(item.product)}
+            />
+          )}
+          contentContainerStyle={
+            history.length === 0
+              ? [styles.emptyContainer, { paddingBottom: tabBarInset }]
+              : [styles.listContent, { paddingBottom: tabBarInset }]
+          }
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="scan-outline"
+              title="No scans yet"
+              description="Scan a product to see its price, where to buy it, and whether it's authentic."
+              actionLabel="Scan Now"
+              onAction={() => router.push('/(tabs)/scan')}
+            />
+          }
+        />
+      </View>
+    </ScreenShell>
   );
 }
 
@@ -165,7 +172,8 @@ function ScanCard({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  container: { flex: 1 },
+  list: { flex: 1 },
   header: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
@@ -185,8 +193,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   analyzingText: { color: Colors.white, fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold },
-  list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxxl },
-  emptyContainer: { flex: 1, justifyContent: 'center' },
+  listContent: { padding: Spacing.lg, gap: Spacing.md },
+  emptyContainer: { flexGrow: 1, justifyContent: 'center' },
   card: {
     flexDirection: 'row',
     backgroundColor: Colors.white,

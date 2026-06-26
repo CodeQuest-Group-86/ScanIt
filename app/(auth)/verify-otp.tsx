@@ -1,19 +1,9 @@
 /**
  * app/(auth)/verify-otp.tsx
- *
- * Shared OTP verification screen used by two flows:
- *   • Sign-up  — verifies phone/email before creating the account session
- *   • Forgot password — verifies identity before allowing password reset
- *
- * Query params (passed via router.push):
- *   contact  — the phone number or email that received the OTP
- *   channel  — 'sms' | 'email'
- *   purpose  — 'signup' | 'reset-password'
- *   name / password / role — forwarded from sign-up for final account creation
  */
 
-import AuthMotionBackground from '@/components/AuthMotionBackground';
 import Button from '@/components/Button';
+import AuthScreenLayout from '@/components/ui/AuthScreenLayout';
 import { authService } from '@/services/auth';
 import { useAuthStore } from '@/stores/auth';
 import { Colors, Radii, Spacing, Typography } from '@/theme';
@@ -21,16 +11,8 @@ import type { OtpChannel } from '@/types';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
@@ -51,18 +33,16 @@ export default function VerifyOtpScreen() {
   const devCode = params.devCode && params.devCode.length === OTP_LENGTH ? params.devCode : '';
 
   const [digits, setDigits] = useState<string[]>(
-    devCode ? devCode.split('') : Array(OTP_LENGTH).fill('')
+    devCode ? devCode.split('') : Array(OTP_LENGTH).fill(''),
   );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_SECONDS);
-  // Once the OTP is verified we skip re-verification on retry (e.g. if signUp fails)
   const [otpVerified, setOtpVerified] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const { signUp } = useAuthStore();
 
-  // Countdown timer for resend
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer(s => s - 1), 1000);
@@ -89,7 +69,7 @@ export default function VerifyOtpScreen() {
   const handleResend = async () => {
     setResendTimer(RESEND_SECONDS);
     setError('');
-    setOtpVerified(false); // reset so the new OTP is verified fresh
+    setOtpVerified(false);
     const res = await authService.sendOtp({ contact, channel, purpose });
     if (res.success && res.data?.devCode) {
       setDigits(res.data.devCode.split(''));
@@ -101,7 +81,6 @@ export default function VerifyOtpScreen() {
     setLoading(true);
     setError('');
 
-    // If OTP was already verified in a previous attempt (signUp failed), skip re-verification
     if (!otpVerified) {
       const res = await authService.verifyOtp({ contact, code, purpose });
 
@@ -124,7 +103,6 @@ export default function VerifyOtpScreen() {
       setOtpVerified(true);
     }
 
-    // signup — create the account with the email forwarded from sign-up params
     const ok = await signUp(
       params.name ?? '',
       params.email ?? contact,
@@ -145,139 +123,116 @@ export default function VerifyOtpScreen() {
     }
   };
 
-  const channelLabel = contact;
-
   return (
-    <SafeAreaView style={styles.safe}>
-      <AuthMotionBackground />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.container}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.back}>
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
-          </TouchableOpacity>
+    <AuthScreenLayout
+      lottie="auth-verify"
+      title="Enter verification code"
+      subtitle={`We sent a 6-digit code to ${contact}`}
+      compact
+      headerExtra={
+        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+          <Text style={styles.backText}>Go back</Text>
+        </TouchableOpacity>
+      }
+    >
+      {devCode ? (
+        <Animated.View entering={FadeIn} style={styles.devBanner}>
+          <Ionicons name="code-slash-outline" size={14} color={Colors.accent} />
+          <Text style={styles.devBannerText}>Dev mode — code pre-filled: {devCode}</Text>
+        </Animated.View>
+      ) : null}
 
-          <View style={styles.iconWrap}>
-            <Ionicons
-              name={channel === 'sms' ? 'phone-portrait-outline' : 'mail-open-outline'}
-              size={48}
-              color={Colors.primary}
+      <View style={styles.otpRow}>
+        {digits.map((d, i) => (
+          <Animated.View key={i} entering={ZoomIn.delay(i * 45).springify().damping(14)}>
+            <TextInput
+              ref={r => { inputRefs.current[i] = r; }}
+              style={[styles.otpBox, d ? styles.otpBoxFilled : null, error ? styles.otpBoxError : null]}
+              value={d}
+              onChangeText={t => handleChange(t, i)}
+              onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
+              keyboardType="number-pad"
+              maxLength={1}
+              selectTextOnFocus
+              accessible
+              accessibilityLabel={`Digit ${i + 1}`}
             />
-          </View>
+          </Animated.View>
+        ))}
+      </View>
 
-          <Text style={styles.title}>Enter verification code</Text>
-          <Text style={styles.subtitle}>
-            We sent a 6-digit code to{'\n'}
-            <Text style={styles.contact}>{channelLabel}</Text>
-          </Text>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          {/* Dev mode banner */}
-          {devCode ? (
-            <View style={styles.devBanner}>
-              <Ionicons name="code-slash-outline" size={14} color={Colors.accent} />
-              <Text style={styles.devBannerText}>Dev mode — code pre-filled: {devCode}</Text>
-            </View>
-          ) : null}
+      <Button
+        label={loading ? '' : 'Verify'}
+        onPress={handleVerify}
+        loading={loading}
+        fullWidth
+        size="lg"
+      />
 
-          {/* OTP boxes */}
-          <View style={styles.otpRow}>
-            {digits.map((d, i) => (
-              <TextInput
-                key={i}
-                ref={r => { inputRefs.current[i] = r; }}
-                style={[styles.otpBox, d ? styles.otpBoxFilled : null, error ? styles.otpBoxError : null]}
-                value={d}
-                onChangeText={t => handleChange(t, i)}
-                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
-                keyboardType="number-pad"
-                maxLength={1}
-                selectTextOnFocus
-                accessible
-                accessibilityLabel={`Digit ${i + 1}`}
-              />
-            ))}
-          </View>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          <Button
-            label={loading ? '' : 'Verify'}
-            onPress={handleVerify}
-            loading={loading}
-            fullWidth
-            size="lg"
-            style={styles.btn}
-          />
-
-          {/* Resend */}
-          <View style={styles.resendRow}>
-            <Text style={styles.resendLabel}>Didn&apos;t receive it? </Text>
-            {resendTimer > 0 ? (
-              <Text style={styles.timerText}>Resend in {resendTimer}s</Text>
-            ) : (
-              <TouchableOpacity onPress={handleResend}>
-                <Text style={styles.resendLink}>Resend code</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View style={styles.resendRow}>
+        <Text style={styles.resendLabel}>Didn&apos;t receive it? </Text>
+        {resendTimer > 0 ? (
+          <Text style={styles.timerText}>Resend in {resendTimer}s</Text>
+        ) : (
+          <TouchableOpacity onPress={handleResend}>
+            <Text style={styles.resendLink}>Resend code</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </AuthScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  safe: { flex: 1, backgroundColor: 'transparent' },
-  container: { flex: 1, padding: Spacing.xl },
-  back: { marginBottom: Spacing.xl, alignSelf: 'flex-start' },
-  iconWrap: {
-    width: 96, height: 96, borderRadius: 48,
-    backgroundColor: Colors.primary + '15',
-    alignItems: 'center', justifyContent: 'center',
-    alignSelf: 'center', marginBottom: Spacing.xl,
+  back: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radii.pill,
+    backgroundColor: 'rgba(255,255,255,0.45)',
   },
-  title: {
-    fontSize: Typography.sizes.xxl,
-    fontWeight: Typography.weights.extrabold,
-    color: Colors.text,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-  subtitle: {
-    fontSize: Typography.sizes.md,
+  backText: {
+    fontSize: Typography.sizes.sm,
     color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: Spacing.xxxl,
+    fontWeight: Typography.weights.medium,
   },
-  contact: { color: Colors.primary, fontWeight: Typography.weights.semibold },
-  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.sm, marginBottom: Spacing.lg },
+  devBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.accent + '18',
+    borderRadius: Radii.md,
+    padding: Spacing.sm,
+  },
+  devBannerText: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.medium },
+  otpRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.sm },
   otpBox: {
-    width: 46, height: 56,
-    borderWidth: 1.5, borderColor: Colors.border ?? '#D0C4B8',
+    width: 44,
+    height: 54,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
     borderRadius: Radii.md,
     textAlign: 'center',
     fontSize: Typography.sizes.xl,
     fontWeight: Typography.weights.bold,
     color: Colors.text,
-    backgroundColor: Colors.white,
+    backgroundColor: 'rgba(255,255,255,0.85)',
   },
-  otpBoxFilled: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  otpBoxFilled: { borderColor: Colors.primary, backgroundColor: Colors.primary + '10' },
   otpBoxError: { borderColor: Colors.danger },
   errorText: {
     color: Colors.danger,
     fontSize: Typography.sizes.sm,
     textAlign: 'center',
-    marginBottom: Spacing.sm,
   },
-  btn: { marginTop: Spacing.sm },
-  resendRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: Spacing.xl },
+  resendRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: Spacing.sm },
   resendLabel: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
   timerText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
   resendLink: { fontSize: Typography.sizes.md, color: Colors.primary, fontWeight: Typography.weights.bold },
-  devBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.accent + '18', borderRadius: Radii.md, padding: Spacing.sm, marginBottom: Spacing.md },
-  devBannerText: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.medium },
 });
