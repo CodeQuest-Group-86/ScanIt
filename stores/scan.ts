@@ -110,10 +110,16 @@ export const useScanStore = create<ScanState>((set, get) => ({
     }
 
     set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false,
-          analyzingStage: 'Identifying product…' });
+          analyzingStage: 'Gemini Vision: identifying product…' });
 
     try {
+      // Stage updates for UX (scan service runs Gemini + DuckDuckGo)
+      const stageTimer = setTimeout(() => {
+        set({ analyzingStage: 'DuckDuckGo: finding where to buy…' });
+      }, 2500);
+
       const res = await scanService.analyzeImage(imageUri);
+      clearTimeout(stageTimer);
 
       if (!res.success || !res.data) {
         set({

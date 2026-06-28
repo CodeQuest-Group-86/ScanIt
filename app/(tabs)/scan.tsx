@@ -253,9 +253,9 @@ export default function ScanScreen() {
       {/* Offline warning banner */}
       {offlineMode && !isAnalyzing && (
         <View style={styles.offlineBanner} pointerEvents="none">
-          <Ionicons name="cloud-offline-outline" size={16} color={Colors.warning} />
+          <Ionicons name="sparkles-outline" size={16} color={Colors.accent} />
           <Text style={styles.offlineText}>
-            Backend offline — showing AI label only. Start Spring Boot for prices.
+            Gemini Vision + DuckDuckGo · Tap sellers to open Google in your browser.
           </Text>
         </View>
       )}

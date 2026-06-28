@@ -5,6 +5,7 @@ import { useSavedStore } from '@/stores/saved';
 import { useScanStore } from '@/stores/scan';
 import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import type { Seller } from '@/types';
+import { buildProductGoogleUrl } from '@/utils/links';
 import { formatPrice } from '@/utils/format';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
@@ -21,6 +22,11 @@ import {
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
+
+async function openExternal(url: string) {
+  const can = await Linking.canOpenURL(url);
+  if (can) await Linking.openURL(url);
+}
 
 export default function ScanResultScreen() {
   const { currentResult, clearResult, offlineMode } = useScanStore();
@@ -52,7 +58,8 @@ export default function ScanResultScreen() {
     );
   }
 
-  const { product, authenticityStatus } = currentResult;
+  const { product, authenticityStatus, googleSearchUrl, duckDuckGoSearchUrl } = currentResult;
+  const googleUrl = googleSearchUrl ?? buildProductGoogleUrl(product.name, product.brand);
 
   const sellerPrices = product.sellers.filter(s => s.price && s.price > 0).map(s => s.price!);
   const currentPrice = product.price > 0 ? product.price : (sellerPrices[0] ?? 0);
@@ -114,12 +121,41 @@ export default function ScanResultScreen() {
             </View>
           </View>
 
+          {/* Description */}
+          {product.description ? (
+            <Text style={styles.description}>{product.description}</Text>
+          ) : null}
+
+          {/* Search externally — opens device browser outside the app */}
+          <View style={styles.searchRow}>
+            <TouchableOpacity
+              style={[styles.searchBtn, styles.googleBtn]}
+              onPress={() => openExternal(googleUrl)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="logo-google" size={18} color={Colors.white} />
+              <Text style={styles.searchBtnText}>Search on Google</Text>
+              <Ionicons name="open-outline" size={14} color={Colors.white + 'CC'} />
+            </TouchableOpacity>
+            {duckDuckGoSearchUrl ? (
+              <TouchableOpacity
+                style={[styles.searchBtn, styles.ddgBtn]}
+                onPress={() => openExternal(duckDuckGoSearchUrl)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="search" size={18} color={Colors.white} />
+                <Text style={styles.searchBtnText}>DuckDuckGo</Text>
+                <Ionicons name="open-outline" size={14} color={Colors.white + 'CC'} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
           {/* Offline notice */}
           {offlineMode && (
             <View style={styles.offlineBox}>
-              <Ionicons name="cloud-offline-outline" size={16} color={Colors.textSecondary} />
+              <Ionicons name="sparkles-outline" size={16} color={Colors.accent} />
               <Text style={styles.offlineText}>
-                Backend offline — prices and seller info unavailable. Connect to backend for live data.
+                Identified with Gemini Vision · Sellers from DuckDuckGo search. Tap any store to open Google in your browser.
               </Text>
             </View>
           )}
@@ -154,10 +190,26 @@ export default function ScanResultScreen() {
             </GlassCard>
           )}
 
+          {/* Specs */}
+          {Object.keys(product.specs).length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Specifications</Text>
+              <GlassCard padded={false} intensity={30} style={styles.specsCard}>
+                {Object.entries(product.specs).map(([key, val], i, arr) => (
+                  <View key={key} style={[styles.specRow, i < arr.length - 1 && styles.specBorder]}>
+                    <Text style={styles.specKey}>{key}</Text>
+                    <Text style={styles.specVal}>{val}</Text>
+                  </View>
+                ))}
+              </GlassCard>
+            </View>
+          )}
+
           {/* Where to buy — sellers */}
           {product.sellers.length > 0 ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Where to Buy</Text>
+              <Text style={styles.sectionHint}>Opens Google Search in your browser</Text>
               {product.sellers.map(s => <SellerRow key={s.id} seller={s} currency={product.currency} />)}
             </View>
           ) : !offlineMode && (
@@ -181,8 +233,16 @@ export default function ScanResultScreen() {
 }
 
 function SellerRow({ seller, currency }: { seller: Seller; currency: string }) {
+  const googleUrl = seller.url;
+  const directUrl = seller.directUrl;
+
   return (
-    <View style={sellerStyles.row}>
+    <TouchableOpacity
+      style={sellerStyles.row}
+      onPress={() => googleUrl && openExternal(googleUrl)}
+      activeOpacity={0.75}
+      disabled={!googleUrl}
+    >
       <View style={sellerStyles.left}>
         <View style={sellerStyles.nameRow}>
           <Text style={sellerStyles.name}>{seller.name}</Text>
@@ -198,25 +258,31 @@ function SellerRow({ seller, currency }: { seller: Seller; currency: string }) {
             <Text style={sellerStyles.rating}>{seller.rating.toFixed(1)} ({seller.reviewCount})</Text>
           </View>
         )}
+        <Text style={sellerStyles.googleHint}>Search on Google →</Text>
       </View>
       <View style={sellerStyles.actions}>
-        {seller.url ? (
-          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.visitBtn]} onPress={() => Linking.openURL(seller.url!)}>
+        {googleUrl ? (
+          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.googleBtn]} onPress={() => openExternal(googleUrl)}>
+            <Ionicons name="logo-google" size={16} color={Colors.white} />
+          </TouchableOpacity>
+        ) : null}
+        {directUrl ? (
+          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.visitBtn]} onPress={() => openExternal(directUrl)}>
             <Ionicons name="open-outline" size={16} color={Colors.white} />
           </TouchableOpacity>
         ) : null}
         {seller.phone && (
-          <TouchableOpacity style={sellerStyles.btn} onPress={() => Linking.openURL(`tel:${seller.phone}`)}>
+          <TouchableOpacity style={sellerStyles.btn} onPress={() => openExternal(`tel:${seller.phone}`)}>
             <Ionicons name="call" size={16} color={Colors.white} />
           </TouchableOpacity>
         )}
         {seller.whatsapp && (
-          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.waBtn]} onPress={() => Linking.openURL(`https://wa.me/${seller.whatsapp.replace('+', '')}`)}>
+          <TouchableOpacity style={[sellerStyles.btn, sellerStyles.waBtn]} onPress={() => openExternal(`https://wa.me/${seller.whatsapp.replace('+', '')}`)}>
             <Ionicons name="logo-whatsapp" size={16} color={Colors.white} />
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -229,10 +295,12 @@ const sellerStyles = StyleSheet.create({
   price: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.primary },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   rating: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
+  googleHint: { fontSize: Typography.sizes.xs, color: Colors.primary, fontWeight: Typography.weights.medium, marginTop: 2 },
   actions: { flexDirection: 'row', gap: Spacing.sm },
   btn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   waBtn: { backgroundColor: '#25D366' },
   visitBtn: { backgroundColor: Colors.accent },
+  googleBtn: { backgroundColor: '#4285F4' },
 });
 
 const styles = StyleSheet.create({
@@ -266,6 +334,12 @@ const styles = StyleSheet.create({
   brand: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium, textTransform: 'uppercase', letterSpacing: 0.5 },
   productName: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.text, lineHeight: 22 },
   category: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
+  description: { fontSize: Typography.sizes.sm, color: Colors.textSecondary, lineHeight: 20 },
+  searchRow: { flexDirection: 'row', gap: Spacing.sm },
+  searchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.md, borderRadius: Radii.pill, ...Shadows.sm },
+  googleBtn: { backgroundColor: '#4285F4' },
+  ddgBtn: { backgroundColor: '#DE5833' },
+  searchBtnText: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.white },
   statusRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 },
   verifiedChip: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success + '15', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: Radii.pill },
   verifiedText: { fontSize: Typography.sizes.xs, color: Colors.success, fontWeight: Typography.weights.semibold },
@@ -284,7 +358,13 @@ const styles = StyleSheet.create({
   savingsText: { fontSize: Typography.sizes.xs, color: Colors.success, fontWeight: Typography.weights.medium },
   priceDivider: { width: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
   section: { gap: 0 },
-  sectionTitle: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.text, marginBottom: Spacing.sm },
+  sectionTitle: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.text, marginBottom: Spacing.xs },
+  sectionHint: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  specsCard: { borderRadius: Radii.md, overflow: 'hidden' },
+  specRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, gap: Spacing.md },
+  specBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  specKey: { fontSize: Typography.sizes.sm, color: Colors.textSecondary, flex: 1 },
+  specVal: { fontSize: Typography.sizes.sm, color: Colors.text, fontWeight: Typography.weights.medium, flex: 1, textAlign: 'right' },
   noSellersBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radii.md },
   noSellersText: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
   recoCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radii.pill, paddingVertical: Spacing.md, ...Shadows.md },

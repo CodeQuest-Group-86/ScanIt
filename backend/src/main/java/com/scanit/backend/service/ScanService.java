@@ -25,6 +25,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,6 +39,7 @@ public class ScanService {
     private final UserRepository userRepository;
     private final ProductService productService;
     private final GeminiService geminiService;
+    private final DuckDuckGoService duckDuckGoService;
 
     // ── Analyze image ─────────────────────────────────────────────────────────
 
@@ -49,12 +51,37 @@ public class ScanService {
         GeminiService.ProductInfo gemini = geminiService.identifyProduct(imageBytes, mimeType);
         Product matched = findOrCreateProduct(gemini);
 
-        // Step 2: Text — research specs, prices, and Ghana sellers
+        // Step 2: DuckDuckGo — find where to buy + Google Search links
+        DuckDuckGoService.ProductSearch ddgSearch = null;
         GeminiService.ProductResearch research = null;
         try {
-            research = geminiService.researchProduct(gemini.name(), gemini.brand(), gemini.category());
+            ddgSearch = duckDuckGoService.searchProduct(gemini.name(), gemini.brand(), gemini.category());
+            if (!ddgSearch.snippets().isEmpty()) {
+                research = geminiService.researchFromSnippets(gemini, ddgSearch.snippets());
+            }
+            if (research == null && ddgSearch.detectedPrice() > 0) {
+                research = new GeminiService.ProductResearch(
+                    Map.of(), 0, 0, ddgSearch.detectedPrice(),
+                    ddgSearch.sellers()
+                );
+            } else if (research != null && ddgSearch.sellers() != null) {
+                // Merge DDG sellers (with Google URLs) into research
+                List<GeminiService.ResearchSeller> merged = new ArrayList<>(ddgSearch.sellers());
+                if (research.sellers() != null) {
+                    for (GeminiService.ResearchSeller s : research.sellers()) {
+                        if (merged.stream().noneMatch(m -> m.name().equalsIgnoreCase(s.name()))) {
+                            merged.add(s);
+                        }
+                    }
+                }
+                research = new GeminiService.ProductResearch(
+                    research.specs(), research.priceMin(), research.priceMax(),
+                    research.priceTypical() > 0 ? research.priceTypical() : ddgSearch.detectedPrice(),
+                    merged
+                );
+            }
         } catch (Exception e) {
-            log.warn("Product research failed, returning basic data: {}", e.getMessage());
+            log.warn("DuckDuckGo product search failed, returning basic data: {}", e.getMessage());
         }
 
         // Persist updated specs/price to the product record
@@ -84,7 +111,7 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Scan complete — user={} product={} confidence={}", userEmail, matched.getName(), confidence);
-        return toDto(saved, research);
+        return toDto(saved, research, ddgSearch);
     }
 
     // ── Barcode lookup ────────────────────────────────────────────────────────
@@ -105,12 +132,21 @@ public class ScanService {
             log.info("Barcode {} not in local DB — querying Open Food Facts", barcode);
             product = fetchFromOpenFoodFacts(barcode);
 
-            // 3. Research the found product for live prices/sellers
+            // 3. DuckDuckGo search for live prices/sellers
+            DuckDuckGoService.ProductSearch ddgSearch = null;
             GeminiService.ProductResearch research = null;
             try {
-                research = geminiService.researchProduct(product.getName(), product.getBrand(), product.getCategory());
+                ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
+                if (!ddgSearch.snippets().isEmpty()) {
+                    research = geminiService.researchFromSnippets(
+                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription()),
+                        ddgSearch.snippets()
+                    );
+                }
                 if (research != null && research.priceTypical() > 0) {
                     product.setPrice(research.priceTypical());
+                } else if (ddgSearch.detectedPrice() > 0) {
+                    product.setPrice(ddgSearch.detectedPrice());
                 }
                 productRepository.save(product);
             } catch (Exception e) {
@@ -130,7 +166,7 @@ public class ScanService {
             user.setScansCount(user.getScansCount() + 1);
             userRepository.save(user);
             log.debug("Barcode via OFF — user={} barcode={} product={}", userEmail, barcode, product.getName());
-            return toDto(saved, research);
+            return toDto(saved, research, ddgSearch);
         }
 
         ScanResult saved = scanResultRepository.save(
@@ -147,7 +183,7 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Barcode scan — user={} barcode={} product={}", userEmail, barcode, product.getName());
-        return toDto(saved, null);
+        return toDto(saved, null, null);
     }
 
     /** Fetch product info from Open Food Facts and auto-create it in the local DB. */
@@ -221,7 +257,7 @@ public class ScanService {
     public List<ScanResultDto> getScanHistory(String userEmail) {
         User user = findUser(userEmail);
         return scanResultRepository.findByUserOrderByScannedAtDesc(user)
-                .stream().map(r -> toDto(r, null)).collect(Collectors.toList());
+                .stream().map(r -> toDto(r, null, null)).collect(Collectors.toList());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -273,7 +309,7 @@ public class ScanService {
 
     // ── DTO mapping ───────────────────────────────────────────────────────────
 
-    private ScanResultDto toDto(ScanResult r, GeminiService.ProductResearch research) {
+    private ScanResultDto toDto(ScanResult r, GeminiService.ProductResearch research, DuckDuckGoService.ProductSearch ddgSearch) {
         ProductDto base = productService.toDto(r.getProduct());
 
         ProductDto productDto = base;
@@ -326,6 +362,9 @@ public class ScanService {
                 .scannedAt(r.getScannedAt() != null ? r.getScannedAt().toString() : Instant.now().toString())
                 .authenticityStatus(r.getAuthenticityStatus().name().toLowerCase())
                 .imageUri(r.getImageUri())
+                .googleSearchUrl(ddgSearch != null ? ddgSearch.googleSearchUrl()
+                    : DuckDuckGoService.buildProductGoogleUrl(r.getProduct().getName(), r.getProduct().getBrand()))
+                .duckDuckGoSearchUrl(ddgSearch != null ? ddgSearch.duckDuckGoSearchUrl() : null)
                 .build();
     }
 

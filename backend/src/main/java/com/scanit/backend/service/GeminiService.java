@@ -120,6 +120,68 @@ public class GeminiService {
         return null;
     }
 
+    // ── 3. Extract price/specs from DuckDuckGo snippets ───────────────────────
+
+    /**
+     * Uses Gemini text-only to parse DuckDuckGo search snippets for Ghana prices and specs.
+     */
+    public ProductResearch researchFromSnippets(ProductInfo info, List<String> snippets) {
+        if (geminiKey == null || geminiKey.isBlank() || snippets == null || snippets.isEmpty()) {
+            return null;
+        }
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Product: \"").append(info.name()).append("\" by \"").append(info.brand())
+              .append("\" (").append(info.category()).append(").\n")
+              .append("Search snippets from DuckDuckGo:\n");
+            int limit = Math.min(snippets.size(), 8);
+            for (int i = 0; i < limit; i++) {
+                sb.append(i + 1).append(". ").append(snippets.get(i)).append("\n");
+            }
+            sb.append("\nBased on these snippets and Ghana retail prices (GHS), respond with ONLY this JSON:\n")
+              .append("{\"specs\":{\"<key>\":\"<value>\"},\"priceGhsMin\":<number>,\"priceGhsMax\":<number>,")
+              .append("\"priceGhsTypical\":<number>}\nInclude 4-8 specs. Use 0 for unknown prices.");
+
+            String body = mapper.writeValueAsString(Map.of(
+                "contents", List.of(Map.of("parts", List.of(Map.of("text", sb.toString())))),
+                "generationConfig", Map.of(
+                    "temperature", 0.1,
+                    "maxOutputTokens", 1024,
+                    "thinkingConfig", Map.of("thinkingBudget", 0)
+                )
+            ));
+
+            Request req = new Request.Builder()
+                    .url(GEMINI_URL)
+                    .addHeader("X-goog-api-key", geminiKey)
+                    .post(RequestBody.create(body, MediaType.get("application/json")))
+                    .build();
+
+            try (Response resp = http.newCall(req).execute()) {
+                String respBody = resp.body() != null ? resp.body().string() : "";
+                if (!resp.isSuccessful()) {
+                    log.warn("Gemini snippet research error {}: {}", resp.code(), respBody.substring(0, Math.min(200, respBody.length())));
+                    return null;
+                }
+                JsonNode root = mapper.readTree(respBody);
+                JsonNode parts = root.path("candidates").get(0).path("content").path("parts");
+                String text = "";
+                if (parts.isArray()) {
+                    for (JsonNode part : parts) {
+                        if (!part.path("thought").asBoolean(false)) {
+                            String t = part.path("text").asText("").trim();
+                            if (!t.isEmpty()) { text = t; break; }
+                        }
+                    }
+                }
+                return parseResearch(text);
+            }
+        } catch (Exception e) {
+            log.warn("Gemini snippet research failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
     // ── Gemini Vision ─────────────────────────────────────────────────────────
 
     private ProductInfo callGeminiVision(byte[] imageBytes, String mimeType) throws Exception {

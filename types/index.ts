@@ -37,7 +37,10 @@ export interface Seller {
   distance: string;
   phone: string;
   whatsapp: string;
+  /** Opens Google Search for this product at the seller (external browser). */
   url?: string;
+  /** Direct retailer or DuckDuckGo result URL (optional secondary link). */
+  directUrl?: string;
   verified: boolean;
   rating: number;
   reviewCount: number;
@@ -105,6 +108,10 @@ export interface ScanResult {
    * Product data will be incomplete (no sellers or prices).
    */
   offlineMode?: boolean;
+  /** Google Search URL for this product (opens in device browser). */
+  googleSearchUrl?: string;
+  /** DuckDuckGo search URL used for seller discovery. */
+  duckDuckGoSearchUrl?: string;
 }
 
 export interface Recommendation {

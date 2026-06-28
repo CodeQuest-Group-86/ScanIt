@@ -36,6 +36,7 @@
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/repository/ScanResultRepository.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/PriceAlert.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/entity/User.java
+/home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/service/DuckDuckGoService.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/controller/SellerController.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/request/UpdateProfileRequest.java
 /home/nonydev/Desktop/scanit/backend/src/main/java/com/scanit/backend/dto/auth/RefreshTokenRequest.java
