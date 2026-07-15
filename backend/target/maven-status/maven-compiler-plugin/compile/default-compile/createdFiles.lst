@@ -34,6 +34,7 @@ com/scanit/backend/dto/NotificationDto.class
 com/scanit/backend/entity/SavedProduct$SavedProductBuilder.class
 com/scanit/backend/entity/Seller$SellerBuilder.class
 com/scanit/backend/entity/ScanResult$ScanResultBuilder.class
+com/scanit/backend/service/DuckDuckGoService$ProductSearch.class
 com/scanit/backend/dto/RecommendationDto$RecommendationDtoBuilder.class
 com/scanit/backend/repository/PriceAlertRepository.class
 com/scanit/backend/service/GeminiService$ResearchSeller.class
@@ -43,6 +44,7 @@ com/scanit/backend/dto/auth/ForgotPasswordRequest.class
 com/scanit/backend/service/GeminiService$ProductInfo.class
 com/scanit/backend/exception/InvalidObjectException.class
 com/scanit/backend/dto/auth/AuthResponse.class
+com/scanit/backend/service/DuckDuckGoService$SearchHit.class
 com/scanit/backend/entity/User.class
 com/scanit/backend/dto/auth/SignInRequest.class
 com/scanit/backend/security/JwtService.class
@@ -77,6 +79,7 @@ com/scanit/backend/controller/UserController.class
 com/scanit/backend/controller/SellerController.class
 com/scanit/backend/dto/PriceAlertDto$PriceAlertDtoBuilder.class
 com/scanit/backend/service/ProductService.class
+com/scanit/backend/service/DuckDuckGoService.class
 com/scanit/backend/util/MapToJsonConverter.class
 com/scanit/backend/dto/request/InventoryItemRequest.class
 com/scanit/backend/dto/auth/VerifyOtpRequest.class
