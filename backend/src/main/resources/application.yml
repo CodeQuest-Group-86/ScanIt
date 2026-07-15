@@ -33,7 +33,17 @@ app:
   frontend:
     url: http://localhost:19006
 
-# ── Twilio Verify — SMS OTP (free trial) ──────────────────────────────────────
+# ── Arkesel — SMS OTP (PREFERRED — free test credits, no credit card) ─────────
+# Ghana-native SMS gateway. Free to sign up, free test credits included.
+# Sign up at https://account.arkesel.com/signup
+# Dashboard → API Keys → copy your key
+# Pricing: GHS 0.035 per SMS verification (pay-as-you-go, no monthly fee)
+arkesel:
+  api-key: ${ARKESEL_API_KEY:}
+  sender-id: ${ARKESEL_SENDER_ID:ScanIt}
+
+# ── Twilio Verify — SMS OTP (fallback, requires trial credit / card) ──────────
+# Only used when ARKESEL_API_KEY is NOT set.
 # Sign up at https://www.twilio.com/try-twilio
 # Verify → create a service → copy Service SID
 twilio:

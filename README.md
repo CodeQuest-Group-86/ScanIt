@@ -45,16 +45,50 @@ Restart the Expo dev server after saving. Your phone and computer must be on the
 
 > The app still works offline — AI vision analyses photos even without the backend. You just won't see prices and seller info until the backend is reachable.
 
-### OTP Authentication Setup (Free Tiers)
+### OTP Authentication Setup
 
-The app sends verification codes on sign-up and for password resets. Two free-tier providers are supported:
+The app uses a 3-step OTP flow for sign-up verification and password resets:
 
-#### SMS OTP — Twilio Verify (free trial ~$15 credit ≈ 150 SMS)
+1. `POST /auth/otp/send` — generates a 6-digit code and delivers it via SMS or email
+2. `POST /auth/otp/verify` — validates the code; returns a `resetToken` for password-reset flows
+3. `POST /auth/otp/reset-password` — sets the new password (bcrypt-hashed, saved to DB)
 
-1. Sign up at [twilio.com](https://www.twilio.com/try-twilio)
+Two providers handle delivery. Configure at least one.
+
+---
+
+#### SMS OTP — Arkesel (Recommended — Ghana-native, free credits, no credit card)
+
+Arkesel is a Ghanaian SMS gateway with free test credits and no credit card required to start.
+
+1. Sign up at [account.arkesel.com/signup](https://account.arkesel.com/signup)
+2. Go to **API Keys** in your dashboard and copy your key
+3. Add to your backend environment (or `application.yml`):
+
+```properties
+arkesel.api-key=your_arkesel_api_key
+arkesel.sender-id=ScanIt        # max 11 characters; requires approval for production
+```
+
+Or via environment variables (recommended for production):
+```
+ARKESEL_API_KEY=your_arkesel_api_key
+ARKESEL_SENDER_ID=ScanIt
+```
+
+> **Pricing**: GHS 0.035 per verification (~$0.002). Pay-as-you-go, no monthly fees.
+> Free test credits are added on sign-up for sandbox testing.
+
+---
+
+#### SMS OTP — Twilio Verify (Fallback — global, free trial ~$15 credit)
+
+Only used when `ARKESEL_API_KEY` is not set. Requires a credit/debit card to verify non-US numbers.
+
+1. Sign up at [twilio.com/try-twilio](https://www.twilio.com/try-twilio)
 2. Go to **Verify** → create a service → copy the **Service SID**
 3. Copy your **Account SID** and **Auth Token** from the console
-4. Add these to your **backend** `application.properties` (never in the mobile app):
+4. Add to your backend:
 
 ```properties
 twilio.account-sid=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
@@ -62,10 +96,7 @@ twilio.auth-token=your_auth_token
 twilio.verify.service-sid=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-5. Your Spring Boot backend must expose:
-   - `POST /api/v1/auth/otp/send` — calls Twilio Verify to send the code
-   - `POST /api/v1/auth/otp/verify` — verifies the code, returns `{ resetToken }` for password resets
-   - `POST /api/v1/auth/otp/reset-password` — sets the new password using the resetToken
+---
 
 #### Email OTP — Resend (free tier: 3,000 emails/month, no credit card)
 
@@ -75,25 +106,35 @@ twilio.verify.service-sid=VAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ```properties
 resend.api-key=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
-resend.from=onboarding@resend.dev   # sandbox address for testing
+resend.from=ScanIt <onboarding@resend.dev>   # sandbox address for testing
 ```
 
-#### Backend endpoint contract
+> The Resend API key is already in `.env.local` for local development.
 
-All three endpoints follow this shape:
+---
+
+#### Dev mode (no provider configured)
+
+When neither `ARKESEL_API_KEY` nor Twilio credentials are set, the backend returns the
+generated code in the API response as `{ "devCode": "123456" }` and the app pre-fills
+the OTP field automatically. No SMS is sent in this mode — ideal for local testing.
+
+---
+
+#### Backend endpoint contract
 
 ```
 POST /auth/otp/send
 { "contact": "+233201234567", "channel": "sms", "purpose": "signup" | "reset-password" }
-→ 200 OK
+→ 200 OK  (+ { "devCode": "..." } in dev mode)
 
 POST /auth/otp/verify
 { "contact": "+233201234567", "code": "123456", "purpose": "signup" | "reset-password" }
-→ { "data": { "resetToken": "..." } }   // resetToken only returned for reset-password
+→ { "data": { "resetToken": "..." } }   // resetToken only for reset-password
 
 POST /auth/otp/reset-password
 { "contact": "+233201234567", "resetToken": "...", "newPassword": "newpass123" }
-→ 200 OK
+→ 200 OK  (password bcrypt-hashed and saved to PostgreSQL)
 ```
 
 ### Demo Account
@@ -152,6 +193,7 @@ All API calls live in `/services/`. Each function returns a typed `ApiResponse<T
 
 ## Tech Stack
 
+### Mobile (React Native)
 - **Expo SDK 54** + Expo Router (file-based navigation)
 - **React Native** + **TypeScript** (strict mode)
 - **Zustand** — state management
@@ -161,3 +203,16 @@ All API calls live in `/services/`. Each function returns a typed `ApiResponse<T
 - **expo-image-picker** — gallery access
 - **react-native-reanimated** — animations
 - **react-native-gesture-handler** — gestures
+
+### Backend (Java / Spring Boot)
+- **Java 17** + **Spring Boot 3.2.5**
+- **Spring Security** + **JWT** (jjwt 0.12.3) — authentication & authorisation
+- **Spring Data JPA** + **Hibernate** — ORM
+- **PostgreSQL** — production database
+- **H2** — in-memory/file DB for local development
+- **Arkesel** — SMS OTP (Ghana-native, free test credits, GHS 0.035/SMS)
+- **Twilio Verify** — SMS OTP fallback (global)
+- **Resend** — email OTP (3,000 free emails/month)
+- **OkHttp** — HTTP client for Arkesel & Resend APIs
+- **Lombok** — boilerplate reduction
+- **Docker** + **Railway** — containerised deployment

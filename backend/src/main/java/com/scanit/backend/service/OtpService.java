@@ -21,6 +21,20 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * OtpService — handles OTP generation, delivery, and verification.
+ *
+ * SMS provider priority (first configured wins):
+ *   1. Arkesel  — free test credits, no credit card, Ghana-native
+ *                 Sign up at https://account.arkesel.com/signup
+ *   2. Twilio Verify — global, free trial (~$15 credit)
+ *                 Sign up at https://www.twilio.com/try-twilio
+ *   3. Dev fallback  — no SMS sent; OTP returned in API response body for local testing
+ *
+ * Email provider:
+ *   Resend — 3,000 emails/month free, no credit card
+ *   Sign up at https://resend.com
+ */
 @Service
 @Slf4j
 public class OtpService {
@@ -28,12 +42,18 @@ public class OtpService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${twilio.account-sid:}") private String twilioAccountSid;
-    @Value("${twilio.auth-token:}")  private String twilioAuthToken;
-    @Value("${twilio.verify.service-sid:}") private String twilioServiceSid;
+    // ── Arkesel (preferred free-tier SMS) ─────────────────────────────────────
+    @Value("${arkesel.api-key:}")        private String arkeselApiKey;
+    @Value("${arkesel.sender-id:ScanIt}") private String arkeselSenderId;
 
-    @Value("${resend.api-key:}") private String resendApiKey;
-    @Value("${resend.from:onboarding@resend.dev}") private String resendFrom;
+    // ── Twilio Verify (fallback SMS) ──────────────────────────────────────────
+    @Value("${twilio.account-sid:}")           private String twilioAccountSid;
+    @Value("${twilio.auth-token:}")            private String twilioAuthToken;
+    @Value("${twilio.verify.service-sid:}")    private String twilioServiceSid;
+
+    // ── Resend (email OTP) ────────────────────────────────────────────────────
+    @Value("${resend.api-key:}")                          private String resendApiKey;
+    @Value("${resend.from:ScanIt <onboarding@resend.dev>}") private String resendFrom;
 
     private static final int OTP_TTL_SECONDS = 600; // 10 minutes
 
@@ -45,8 +65,11 @@ public class OtpService {
     // ── Send OTP ──────────────────────────────────────────────────────────────
 
     /**
-     * Returns the OTP code only in dev mode (when Twilio/Resend not configured),
-     * so the frontend can pre-fill it. Returns null when a real provider is used.
+     * Sends an OTP via the appropriate channel.
+     *
+     * Returns the OTP code only in dev mode (no SMS provider configured) so the
+     * frontend can pre-fill it for testing. Returns null when a real provider delivers
+     * the code.
      */
     public String send(SendOtpRequest req) {
         String contact = req.getContact();
@@ -56,6 +79,9 @@ public class OtpService {
         User user = findOrCreatePlaceholder(contact, channel, purpose);
 
         if ("sms".equalsIgnoreCase(channel)) {
+            if (hasArkesel()) {
+                return sendViaArkesel(contact, user, purpose);
+            }
             return sendViaTwilio(contact, user, purpose);
         } else {
             return sendViaResend(contact, user, purpose);
@@ -65,7 +91,9 @@ public class OtpService {
     // ── Verify OTP ────────────────────────────────────────────────────────────
 
     /**
-     * Returns a resetToken when purpose is "reset-password", null otherwise.
+     * Verifies the OTP submitted by the user.
+     *
+     * @return a short-lived resetToken when purpose == "reset-password"; null otherwise.
      */
     public String verify(VerifyOtpRequest req) {
         String contact = req.getContact();
@@ -74,7 +102,6 @@ public class OtpService {
         User user = findByContact(contact)
                 .orElseThrow(() -> new BadRequestException("No pending verification for this contact"));
 
-        // Check whether an OTP was ever sent (or was already used) before anything else
         if (user.getOtpCode() == null || user.getOtpExpiry() == null || user.getOtpPurpose() == null) {
             throw new BadRequestException("No active OTP found. Please request a new one.");
         }
@@ -88,16 +115,18 @@ public class OtpService {
         }
 
         boolean valid;
-        if ("sms".equalsIgnoreCase(channel) && hasTwilio()) {
+        if ("sms".equalsIgnoreCase(channel) && hasTwilio() && !hasArkesel()) {
+            // Only delegate to Twilio when Arkesel is NOT configured — Arkesel stores
+            // the code server-side so we always verify locally for Arkesel.
             valid = checkViaTwilio(contact, req.getCode());
         } else {
-            // Email OTP or Twilio not configured — verify locally stored code
+            // Arkesel OTP, email OTP, or dev mode — verify against locally stored code
             valid = user.getOtpCode() != null && user.getOtpCode().equals(req.getCode());
         }
 
         if (!valid) throw new BadRequestException("Invalid verification code");
 
-        // Clear OTP
+        // Clear OTP fields
         user.setOtpCode(null);
         user.setOtpExpiry(null);
 
@@ -115,6 +144,10 @@ public class OtpService {
 
     // ── OTP password reset ────────────────────────────────────────────────────
 
+    /**
+     * Sets a new password using the resetToken returned by {@link #verify}.
+     * The new password is bcrypt-hashed and persisted to the database.
+     */
     public void resetPassword(OtpResetPasswordRequest req) {
         User user = findByContact(req.getContact())
                 .orElseThrow(() -> new BadRequestException("User not found"));
@@ -133,18 +166,76 @@ public class OtpService {
         userRepository.save(user);
     }
 
+    // ── Arkesel SMS OTP ───────────────────────────────────────────────────────
+
+    /**
+     * Sends OTP via Arkesel's OTP API (https://sms.arkesel.com/api/v2/otp/send).
+     * Arkesel generates and delivers the code — we store it locally so we can
+     * verify without a second API round-trip.
+     *
+     * API docs: https://developers.arkesel.com
+     * Free test credits available on sign-up — no credit card required.
+     */
+    private String sendViaArkesel(String phone, User user, String purpose) {
+        String code = generateCode();
+        saveLocalOtp(user, purpose, code);
+
+        String message = "Your ScanIt verification code is " + code +
+                ". Valid for 10 minutes. Do not share it.";
+
+        OkHttpClient client = new OkHttpClient();
+        String json = String.format(
+                "{\"expiry\":10,\"length\":6,\"medium\":\"sms\"," +
+                "\"message\":\"%s\"," +
+                "\"number\":\"%s\"," +
+                "\"sender_id\":\"%s\"," +
+                "\"type\":\"numeric\"}",
+                message, phone, arkeselSenderId);
+
+        Request request = new Request.Builder()
+                .url("https://sms.arkesel.com/api/v2/otp/send")
+                .addHeader("api-key", arkeselApiKey)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(json, MediaType.get("application/json")))
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            String body = response.body() != null ? response.body().string() : "(empty)";
+            if (!response.isSuccessful()) {
+                log.error("Arkesel OTP send failed ({}) for {}: {}", response.code(), phone, body);
+                throw new BadRequestException("Failed to send SMS via Arkesel. Please try again.");
+            }
+            // Arkesel success: {"code":"1000","message":"Successful..."}
+            if (!body.contains("\"1000\"")) {
+                log.error("Arkesel OTP unexpected response for {}: {}", phone, body);
+                throw new BadRequestException("Failed to send SMS. Please try again.");
+            }
+            log.info("Arkesel OTP sent successfully to {}", phone);
+        } catch (IOException e) {
+            log.error("Arkesel IO error for {}: {}", phone, e.getMessage());
+            throw new BadRequestException("Failed to send SMS (network error). Please try again.");
+        }
+        return null;
+    }
+
+    private boolean hasArkesel() {
+        return !arkeselApiKey.isBlank();
+    }
+
     // ── Twilio Verify ─────────────────────────────────────────────────────────
 
     private String sendViaTwilio(String phone, User user, String purpose) {
         if (!hasTwilio()) {
+            // No SMS provider configured — dev fallback
             saveLocalOtp(user, purpose);
             String code = user.getOtpCode();
-            log.warn("Twilio not configured — dev OTP for {}: {}", phone, code);
-            return code; // returned to frontend for dev pre-fill
+            log.warn("No SMS provider configured — dev OTP for {}: {}", phone, code);
+            return code;
         }
         try {
             Twilio.init(twilioAccountSid, twilioAuthToken);
             Verification.creator(twilioServiceSid, phone, "sms").create();
+            // Twilio manages the code — store a sentinel so we know OTP is pending
             user.setOtpCode("twilio");
             user.setOtpExpiry(Instant.now().plusSeconds(OTP_TTL_SECONDS));
             user.setOtpPurpose(purpose);
@@ -169,7 +260,11 @@ public class OtpService {
         }
     }
 
-    // ── Resend email ──────────────────────────────────────────────────────────
+    private boolean hasTwilio() {
+        return !twilioAccountSid.isBlank() && !twilioAuthToken.isBlank() && !twilioServiceSid.isBlank();
+    }
+
+    // ── Resend email OTP ──────────────────────────────────────────────────────
 
     private String sendViaResend(String email, User user, String purpose) {
         String code = generateCode();
@@ -177,7 +272,7 @@ public class OtpService {
 
         if (resendApiKey.isBlank()) {
             log.warn("Resend not configured — dev OTP for {}: {}", email, code);
-            return code; // returned to frontend for dev pre-fill
+            return code;
         }
 
         String subject = "signup".equals(purpose)
@@ -215,10 +310,6 @@ public class OtpService {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private boolean hasTwilio() {
-        return !twilioAccountSid.isBlank() && !twilioAuthToken.isBlank() && !twilioServiceSid.isBlank();
-    }
-
     private String generateCode() {
         return String.format("%06d", new SecureRandom().nextInt(1_000_000));
     }
@@ -234,17 +325,13 @@ public class OtpService {
         userRepository.save(user);
     }
 
-    private String purpose(User user) {
-        return user.getOtpPurpose() != null ? user.getOtpPurpose() : "";
-    }
-
     private String inferChannel(String contact) {
         return contact.startsWith("+") || contact.matches("\\d+") ? "sms" : "email";
     }
 
     /**
-     * For sign-up the user doesn't exist yet, so we create a minimal record
-     * just to hold the OTP. AuthService.signUp() will fill in the rest later.
+     * For sign-up the user doesn't exist yet, so we create a minimal placeholder
+     * record just to hold the OTP. AuthService.signUp() fills in the rest later.
      * For reset-password the user must already exist.
      */
     private User findOrCreatePlaceholder(String contact, String channel, String purpose) {
@@ -252,7 +339,6 @@ public class OtpService {
 
         if (existing.isPresent()) {
             User user = existing.get();
-            // A real (non-placeholder) account already owns this contact
             if ("signup".equals(purpose) && user.getName() != null && !user.getName().isBlank()) {
                 throw new BadRequestException("An account with that email already exists. Please sign in.");
             }
@@ -275,7 +361,6 @@ public class OtpService {
     }
 
     private java.util.Optional<User> findByContact(String contact) {
-        // Try email first, then phone
         return userRepository.findByEmail(contact)
                 .or(() -> userRepository.findByPhoneNumber(contact))
                 .or(() -> userRepository.findByEmail(contact + "@placeholder.scanit"));
