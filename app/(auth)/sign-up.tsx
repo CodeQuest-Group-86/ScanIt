@@ -23,10 +23,10 @@ export default function SignUpScreen() {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Name is required";
     if (!email.trim()) e.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = "Enter a valid email";
+    else if (!/\S+@\S+\.\S+/.test(email)) e.email = "Enter a valid email!";
     if (!phone.trim()) e.phone = "Phone number is required";
     else if (!/^\+?[0-9]{9,15}$/.test(phone.replace(/\s/g, "")))
-      e.phone = "Enter a valid phone number (e.g. +233201234567)";
+      e.phone = "Enter a valid phone number (e.g. +233207384908)";
     if (!password) e.password = "Password is required";
     else if (password.length < 6) e.password = "At least 6 characters";
     if (password !== confirm) e.confirm = "Passwords do not match";
@@ -106,7 +106,7 @@ export default function SignUpScreen() {
 
       <Input
         label="Full Name"
-        placeholder="Ama Mensah"
+        placeholder="Festus Kwadzokpo"
         value={name}
         onChangeText={setName}
         leftIcon="person-outline"
