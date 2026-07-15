@@ -34,11 +34,12 @@ logging:
     org.springframework.security: DEBUG
 
 # ─── SMS OTP (dev) ────────────────────────────────────────────────────────────
-# Set ARKESEL_API_KEY to use real SMS in dev. Without it the OTP is returned
-# in the API response body (devCode) so the app pre-fills the field for you.
-arkesel:
-  api-key: ${ARKESEL_API_KEY:}
-  sender-id: ${ARKESEL_SENDER_ID:ScanIt}
+# Set TERMII_API_KEY to send real SMS. Without it the backend returns the OTP
+# in the response body (devCode) so the app pre-fills the field for you.
+termii:
+  api-key: ${TERMII_API_KEY:}
+  sender-id: ${TERMII_SENDER_ID:ScanIt}
+  channel: generic
 
 # ─── AI Vision ────────────────────────────────────────────────────────────────
 # Get a free Gemini API key at: https://aistudio.google.com/app/apikey

@@ -1,0 +1,129 @@
+version: "3.9"
+
+# ── ScanIt Microservices — Local Dev Stack ────────────────────────────────────
+#
+# Starts all services plus a shared PostgreSQL instance.
+# Each service also works standalone with H2 (just run it with spring.profiles.active=dev).
+#
+# Usage:
+#   docker-compose up --build          # start everything
+#   docker-compose up api-gateway      # start gateway only (talks to localhost services)
+#
+# Ports:
+#   8080 → api-gateway       (single entry point — use this from the mobile app)
+#   8081 → auth-service
+#   8082 → product-service
+#   8083 → scan-service
+#   8084 → notification-service
+#   5432 → postgres
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: scanit
+      POSTGRES_PASSWORD: scanit
+      POSTGRES_DB: scanit
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scanit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_min_32_chars}
+      SPRING_PROFILES_ACTIVE: prod
+    depends_on:
+      - auth-service
+      - product-service
+      - scan-service
+      - notification-service
+    restart: unless-stopped
+
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: 8081
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://postgres:5432/scanit
+      DATABASE_USERNAME: scanit
+      DATABASE_PASSWORD: scanit
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production_min_32_chars}
+      TERMII_API_KEY: ${TERMII_API_KEY:-}
+      TERMII_SENDER_ID: ${TERMII_SENDER_ID:-ScanIt}
+      TERMII_CHANNEL: ${TERMII_CHANNEL:-generic}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-ScanIt <onboarding@resend.dev>}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  product-service:
+    build: ./product-service
+    ports:
+      - "8082:8082"
+    environment:
+      PORT: 8082
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://postgres:5432/scanit
+      DATABASE_USERNAME: scanit
+      DATABASE_PASSWORD: scanit
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scan-service:
+    build: ./scan-service
+    ports:
+      - "8083:8083"
+    environment:
+      PORT: 8083
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://postgres:5432/scanit
+      DATABASE_USERNAME: scanit
+      DATABASE_PASSWORD: scanit
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      PORT: 8084
+      SPRING_PROFILES_ACTIVE: prod
+      DATABASE_URL: jdbc:postgresql://postgres:5432/scanit
+      DATABASE_USERNAME: scanit
+      DATABASE_PASSWORD: scanit
+      TERMII_API_KEY: ${TERMII_API_KEY:-}
+      TERMII_SENDER_ID: ${TERMII_SENDER_ID:-ScanIt}
+      TERMII_CHANNEL: ${TERMII_CHANNEL:-generic}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM: ${RESEND_FROM:-ScanIt <onboarding@resend.dev>}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -67,6 +67,13 @@ public class User implements UserDetails {
     private String otpPurpose;
     private String phoneNumber;
 
+    /**
+     * Stores the pinId returned by the Termii Send Token API.
+     * Required to call Termii Verify Token API when the user submits their code.
+     * Cleared after successful verification.
+     */
+    private String termiiPinId;
+
     // ── UserDetails contract ──────────────────────────────────────────────────
 
     @Override
