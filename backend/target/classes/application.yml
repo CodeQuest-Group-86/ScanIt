@@ -33,14 +33,14 @@ app:
   frontend:
     url: http://localhost:19006
 
-# ── Arkesel — SMS OTP (PREFERRED — free test credits, no credit card) ─────────
-# Ghana-native SMS gateway. Free to sign up, free test credits included.
-# Sign up at https://account.arkesel.com/signup
-# Dashboard → API Keys → copy your key
-# Pricing: GHS 0.035 per SMS verification (pay-as-you-go, no monthly fee)
-arkesel:
-  api-key: ${ARKESEL_API_KEY:}
-  sender-id: ${ARKESEL_SENDER_ID:ScanIt}
+# ── Termii — SMS OTP (PREFERRED — free signup, no credit card) ────────────────
+# Sign up free at https://app.termii.com/register
+# Dashboard → Settings → API Key → copy your key
+# Free trial balance included on signup. Pay-as-you-go after.
+termii:
+  api-key: ${TERMII_API_KEY:}
+  sender-id: ${TERMII_SENDER_ID:ScanIt}
+  channel: ${TERMII_CHANNEL:generic}   # use "generic" or "dnd"
 
 # ── Twilio Verify — SMS OTP (fallback, requires trial credit / card) ──────────
 # Only used when ARKESEL_API_KEY is NOT set.
