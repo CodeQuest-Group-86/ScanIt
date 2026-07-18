@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, Spacing, Typography } from '@/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import Button from './Button';
 
 interface EmptyStateProps {
@@ -33,7 +33,7 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.surface,
+    
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,
