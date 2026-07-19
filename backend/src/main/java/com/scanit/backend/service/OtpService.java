@@ -352,11 +352,24 @@ public class OtpService {
             if (!response.isSuccessful()) {
                 String resBody = response.body() != null ? response.body().string() : "(no body)";
                 log.error("Resend failed ({}) from='{}': {}", response.code(), resendFrom, resBody);
-                throw new BadRequestException("Email send failed (" + response.code() + "): " + resBody);
+                // Surface actionable guidance for common Resend free-tier limits
+                if (resBody.contains("verify a domain") || resBody.contains("own email address")) {
+                    throw new BadRequestException(
+                            "Email delivery is limited until a custom domain is verified on Resend. " +
+                            "Verify a domain at resend.com/domains, then set RESEND_FROM to an address on that domain.");
+                }
+                if (resBody.contains("Invalid `to` field") || resBody.contains("testing email")) {
+                    throw new BadRequestException(
+                            "Cannot send to that email address with the current Resend setup. " +
+                            "Use a real inbox, or verify a domain at resend.com/domains for production.");
+                }
+                throw new BadRequestException("Failed to send verification email. Please try again shortly.");
             }
+        } catch (BadRequestException e) {
+            throw e;
         } catch (IOException e) {
             log.error("Resend IO error: {}", e.getMessage());
-            throw new BadRequestException("Failed to send email (network error): " + e.getMessage());
+            throw new BadRequestException("Failed to send email (network error). Please try again.");
         }
         return null;
     }

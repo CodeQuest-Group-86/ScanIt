@@ -21,7 +21,7 @@ export default function ScanHistoryScreen() {
   useEffect(() => {
     if (user && history.length === 0) {
       setLoading(true);
-      loadHistory(user.id).finally(() => setLoading(false));
+      loadHistory().finally(() => setLoading(false));
     }
   }, [user]);
 

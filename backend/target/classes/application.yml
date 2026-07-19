@@ -57,3 +57,11 @@ twilio:
 resend:
   api-key: ${RESEND_API_KEY:}
   from: ${RESEND_FROM:ScanIt <onboarding@resend.dev>}
+
+# ── Gemini Vision (product ID + price research) ───────────────────────────────
+# Get a free key at: https://aistudio.google.com/app/apikey
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+
+openrouter:
+  api-key: ${OPENROUTER_API_KEY:}
