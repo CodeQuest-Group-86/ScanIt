@@ -92,7 +92,7 @@ export default function ResetPasswordScreen() {
             leftIcon="lock-closed-outline"
             error={errors.confirm}
           />
-          <Button label="Update Password" onPress={handleSubmit} loading={loading} fullWidth size="lg" />
+          <Button label="Update Password" onPress={handleSubmit} loading={loading} fullWidth size="lg" variant="gradient" />
         </View>
       </View>
     </SafeAreaView>

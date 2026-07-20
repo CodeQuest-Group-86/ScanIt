@@ -170,6 +170,7 @@ export default function VerifyOtpScreen() {
         loading={loading}
         fullWidth
         size="lg"
+        variant="gradient"
       />
 
       <View style={styles.resendRow}>

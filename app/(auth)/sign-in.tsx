@@ -78,7 +78,7 @@ export default function SignInScreen() {
         <Text style={styles.forgot}>Forgot password?</Text>
       </TouchableOpacity>
 
-      <Button label="Sign In" onPress={handleLogin} loading={isLoading} fullWidth size="lg" />
+      <Button label="Sign In" onPress={handleLogin} loading={isLoading} fullWidth size="lg" variant="gradient" />
     </AuthScreenLayout>
   );
 }

@@ -157,6 +157,7 @@ export default function SignUpScreen() {
         loading={loading}
         fullWidth
         size="lg"
+        variant="gradient"
       />
     </AuthScreenLayout>
   );
