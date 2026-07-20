@@ -8,6 +8,9 @@
 import type { ApiResponse } from '@/types';
 import { api } from '@/utils/api';
 
+const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_74e29f7885f02e0c92e44b0e981dd26fea044376';
+const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || 'sk_live_3a4c203545a2e21f973b67f86eea4b3a5062e74a';
+
 export interface PaymentRequest {
   email: string;
   amount: number; // in GHS (smallest currency unit: pesewas)
@@ -88,8 +91,37 @@ export const paymentService = {
    */
   async initializePayment(request: PaymentRequest): Promise<ApiResponse<PaymentResponse>> {
     try {
-      const data = await api.post<PaymentResponse>('/payments/initialize', request, { skipAuth: false });
-      return { success: true, data };
+      // Direct Paystack API call
+      const response = await fetch('https://api.paystack.co/transaction/initialize', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: request.email,
+          amount: request.amount,
+          reference: request.reference,
+          metadata: request.metadata,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.status) {
+        return { 
+          success: true, 
+          data: {
+            reference: result.data.reference,
+            accessCode: result.data.access_code,
+            authorizationUrl: result.data.authorization_url,
+            amount: result.data.amount,
+            status: result.data.status as 'success' | 'pending' | 'failed',
+          }
+        };
+      } else {
+        return { success: false, message: result.message ?? 'Failed to initialize payment', data: null as never };
+      }
     } catch (e: any) {
       return { success: false, message: e.message ?? 'Failed to initialize payment', data: null as never };
     }
@@ -100,8 +132,30 @@ export const paymentService = {
    */
   async verifyPayment(reference: string): Promise<ApiResponse<VerifyPaymentResponse>> {
     try {
-      const data = await api.get<VerifyPaymentResponse>(`/payments/verify/${reference}`);
-      return { success: true, data };
+      // Direct Paystack API call
+      const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      
+      if (result.status) {
+        return { 
+          success: true, 
+          data: {
+            status: result.data.status as 'success' | 'failed' | 'pending',
+            amount: result.data.amount,
+            reference: result.data.reference,
+            metadata: result.data.metadata,
+          }
+        };
+      } else {
+        return { success: false, message: result.message ?? 'Failed to verify payment', data: null as never };
+      }
     } catch (e: any) {
       return { success: false, message: e.message ?? 'Failed to verify payment', data: null as never };
     }

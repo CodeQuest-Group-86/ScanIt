@@ -1,37 +1,18 @@
+import { useScanStore } from '@/stores/scan';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import {
-  Modal,
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Linking,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
-import { useScanStore } from '@/stores/scan';
-
-const PLANS = [
-  {
-    id: 'monthly',
-    label: 'Monthly',
-    price: '$20',
-    period: '/month',
-    sub: 'Billed monthly',
-    popular: false,
-  },
-  {
-    id: 'yearly',
-    label: 'Yearly',
-    price: '$210',
-    period: '/year',
-    sub: 'Save $30 vs monthly',
-    popular: true,
-  },
-] as const;
+import PaymentModal from './PaymentModal';
 
 const PERKS = [
-  { icon: 'infinite-outline', text: 'Unlimited daily scans' },
+  { icon: 'infinite-outline', text: 'Unlimited lifetime scans' },
   { icon: 'flash-outline', text: 'Priority AI processing' },
   { icon: 'storefront-outline', text: 'Live seller prices & locations' },
   { icon: 'bookmark-outline', text: 'Unlimited saved products' },
@@ -39,105 +20,85 @@ const PERKS = [
 ];
 
 export default function PaywallModal() {
-  const { showPaywall, dismissPaywall, dailyScansUsed, dailyScansLimit } = useScanStore();
-  const [selected, setSelected] = React.useState<'monthly' | 'yearly'>('yearly');
+  const { showPaywall, dismissPaywall, totalScansUsed, lifetimeScansLimit, setPremium } = useScanStore();
+  const [showPaymentModal, setShowPaymentModal] = React.useState(false);
 
   if (!showPaywall) return null;
 
   const handleSubscribe = () => {
-    // TODO: hook up to your payment provider (Stripe, RevenueCat, etc.)
-    // For now open a placeholder URL or show alert
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSuccess = () => {
+    setPremium(true);
+    setShowPaymentModal(false);
     dismissPaywall();
-    Linking.openURL('https://scanit.app/upgrade').catch(() => {});
   };
 
   return (
-    <Modal
-      visible={showPaywall}
-      transparent
-      animationType="slide"
-      onRequestClose={dismissPaywall}
-    >
-      <View style={styles.backdrop}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={dismissPaywall} activeOpacity={1} />
+    <>
+      <Modal
+        visible={showPaywall}
+        transparent
+        animationType="slide"
+        onRequestClose={dismissPaywall}
+      >
+        <View style={styles.backdrop}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={dismissPaywall} activeOpacity={1} />
 
-        <View style={styles.sheet}>
-          {/* Drag handle */}
-          <View style={styles.handle} />
+          <View style={styles.sheet}>
+            {/* Drag handle */}
+            <View style={styles.handle} />
 
-          {/* Close */}
-          <TouchableOpacity style={styles.closeBtn} onPress={dismissPaywall}>
-            <Ionicons name="close" size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
+            {/* Close */}
+            <TouchableOpacity style={styles.closeBtn} onPress={dismissPaywall}>
+              <Ionicons name="close" size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.iconWrap}>
-              <Ionicons name="scan-outline" size={32} color={Colors.white} />
-            </View>
-            <Text style={styles.title}>{'You'}{'\u2019'}ve used all{'\n'}free scans today</Text>
-            <Text style={styles.subtitle}>
-              {dailyScansUsed}/{dailyScansLimit} free scans used · Resets in 24 hrs
-            </Text>
-          </View>
-
-          {/* Perks */}
-          <View style={styles.perks}>
-            {PERKS.map(p => (
-              <View key={p.icon} style={styles.perkRow}>
-                <View style={styles.perkIcon}>
-                  <Ionicons name={p.icon as any} size={16} color={Colors.primary} />
-                </View>
-                <Text style={styles.perkText}>{p.text}</Text>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.iconWrap}>
+                <Ionicons name="scan-outline" size={32} color={Colors.white} />
               </View>
-            ))}
-          </View>
+              <Text style={styles.title}>{'You'}{'\u2019'}ve used all{'\n'}free scans</Text>
+              <Text style={styles.subtitle}>
+                {totalScansUsed}/{lifetimeScansLimit} free scans used · Upgrade for unlimited
+              </Text>
+            </View>
 
-          {/* Plans */}
-          <View style={styles.plans}>
-            {PLANS.map(plan => (
-              <TouchableOpacity
-                key={plan.id}
-                style={[styles.planCard, selected === plan.id && styles.planCardSelected]}
-                onPress={() => setSelected(plan.id)}
-                activeOpacity={0.85}
-              >
-                {plan.popular && (
-                  <View style={styles.popularBadge}>
-                    <Text style={styles.popularText}>BEST VALUE</Text>
+            {/* Perks */}
+            <View style={styles.perks}>
+              {PERKS.map(p => (
+                <View key={p.icon} style={styles.perkRow}>
+                  <View style={styles.perkIcon}>
+                    <Ionicons name={p.icon as any} size={16} color={Colors.primary} />
                   </View>
-                )}
-                <Text style={[styles.planLabel, selected === plan.id && styles.planLabelSelected]}>
-                  {plan.label}
-                </Text>
-                <View style={styles.planPriceRow}>
-                  <Text style={[styles.planPrice, selected === plan.id && styles.planPriceSelected]}>
-                    {plan.price}
-                  </Text>
-                  <Text style={styles.planPeriod}>{plan.period}</Text>
+                  <Text style={styles.perkText}>{p.text}</Text>
                 </View>
-                <Text style={styles.planSub}>{plan.sub}</Text>
-                <View style={[styles.radio, selected === plan.id && styles.radioSelected]}>
-                  {selected === plan.id && <View style={styles.radioDot} />}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+              ))}
+            </View>
 
-          {/* CTA */}
-          <TouchableOpacity style={styles.cta} onPress={handleSubscribe} activeOpacity={0.88}>
-            <Text style={styles.ctaText}>
-              Start Pro — {selected === 'monthly' ? '$20/mo' : '$210/yr'}
+            {/* CTA */}
+            <TouchableOpacity style={styles.cta} onPress={handleSubscribe} activeOpacity={0.88}>
+              <Text style={styles.ctaText}>
+                Upgrade to Premium
+              </Text>
+              <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+            </TouchableOpacity>
+
+            <Text style={styles.legalText}>
+              One-time payment · Secure payment powered by Paystack
             </Text>
-            <Ionicons name="arrow-forward" size={18} color={Colors.white} />
-          </TouchableOpacity>
-
-          <Text style={styles.legalText}>
-            Cancel anytime · Secure payment · Auto-renews
-          </Text>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      <PaymentModal
+        visible={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={handlePaymentSuccess}
+      />
+    </>
   );
 }
 
@@ -201,65 +162,25 @@ const styles = StyleSheet.create({
   },
   perkText: { fontSize: Typography.sizes.sm, color: Colors.text, fontWeight: Typography.weights.medium },
 
-  // Plans
-  plans: { flexDirection: 'row', paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.md },
-  planCard: {
-    flex: 1,
-    borderRadius: Radii.lg,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    padding: Spacing.md,
-    gap: 3,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  planCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: 0, right: 0,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderBottomLeftRadius: Radii.sm,
-  },
-  popularText: { fontSize: 9, fontWeight: Typography.weights.bold, color: Colors.white, letterSpacing: 0.5 },
-  planLabel: { fontSize: Typography.sizes.sm, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
-  planLabelSelected: { color: Colors.primary },
-  planPriceRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 2 },
-  planPrice: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text },
-  planPriceSelected: { color: Colors.primary },
-  planPeriod: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, paddingBottom: 3 },
-  planSub: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
-  radio: {
-    width: 18, height: 18, borderRadius: 9,
-    borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-    marginTop: Spacing.xs,
-  },
-  radioSelected: { borderColor: Colors.primary },
-  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: Colors.primary },
-
   // CTA
   cta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: Spacing.sm,
     backgroundColor: Colors.primary,
-    borderRadius: Radii.pill,
     marginHorizontal: Spacing.lg,
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.md + 2,
-    ...Shadows.md,
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radii.lg,
+    gap: Spacing.sm,
   },
-  ctaText: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.white },
-
+  ctaText: {
+    fontSize: Typography.sizes.base,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.white,
+  },
   legalText: {
-    textAlign: 'center',
     fontSize: Typography.sizes.xs,
     color: Colors.textSecondary,
+    textAlign: 'center',
     marginTop: Spacing.md,
-    paddingHorizontal: Spacing.lg,
   },
 });
