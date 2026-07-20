@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   ctaText: {
-    fontSize: Typography.sizes.base,
+    fontSize: Typography.sizes.md,
     fontWeight: Typography.weights.semibold,
     color: Colors.white,
   },

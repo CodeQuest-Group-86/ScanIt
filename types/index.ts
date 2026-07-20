@@ -6,6 +6,7 @@ export interface User {
   email: string;
   role: Role;
   avatarUrl?: string;
+  phoneNumber?: string;
   scansCount: number;
   savedCount: number;
   totalSaved: number;
@@ -28,6 +29,7 @@ export interface SignUpPayload {
   email: string;
   password: string;
   role: Role;
+  phoneNumber?: string;
 }
 
 export interface Seller {

@@ -39,6 +39,10 @@ export const authService = {
         email: payload.email,
         phoneNumber: '+233200000000',
         role: 'consumer',
+        scansCount: 0,
+        savedCount: 0,
+        totalSaved: 0,
+        createdAt: new Date().toISOString(),
       };
       const mockTokens: AuthTokens = {
         accessToken: 'mock-access-token-' + Date.now(),
@@ -66,6 +70,10 @@ export const authService = {
         email: payload.email,
         phoneNumber: payload.phoneNumber || '',
         role: payload.role,
+        scansCount: 0,
+        savedCount: 0,
+        totalSaved: 0,
+        createdAt: new Date().toISOString(),
       };
       const mockTokens: AuthTokens = {
         accessToken: 'mock-access-token-' + Date.now(),
