@@ -61,7 +61,8 @@
         {
           "photosPermission": "ScanIt needs photo library access to pick product images."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

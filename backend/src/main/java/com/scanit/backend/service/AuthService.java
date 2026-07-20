@@ -61,6 +61,9 @@ public class AuthService {
             placeholder.setName(request.getName());
             placeholder.setPassword(passwordEncoder.encode(request.getPassword()));
             placeholder.setRole(role);
+            if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+                placeholder.setPhoneNumber(request.getPhoneNumber());
+            }
             placeholder.setOtpCode(null);
             placeholder.setOtpExpiry(null);
             placeholder.setOtpPurpose(null);
@@ -71,6 +74,7 @@ public class AuthService {
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
                     .role(role)
+                    .phoneNumber(request.getPhoneNumber())
                     .build();
             user = userRepository.save(user);
         }
@@ -158,6 +162,7 @@ public class AuthService {
                 .email(user.getEmail())
                 .role(user.getRole().name().toLowerCase())
                 .avatarUrl(user.getAvatarUrl())
+                .phoneNumber(user.getPhoneNumber())
                 .scansCount(user.getScansCount())
                 .savedCount(user.getSavedCount())
                 .totalSaved(user.getTotalSaved())

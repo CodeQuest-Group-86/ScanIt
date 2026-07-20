@@ -61,6 +61,7 @@ export default function SignUpScreen() {
         purpose: "signup",
         name: name.trim(),
         email: email.trim(),
+        phone: phone.trim(),
         password,
         role,
         devCode: res.data?.devCode ?? "",

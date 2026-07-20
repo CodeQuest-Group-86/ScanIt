@@ -27,4 +27,6 @@ public class SignUpRequest {
     @NotBlank(message = "Role is required")
     @Pattern(regexp = "consumer|seller|CONSUMER|SELLER", message = "Role must be consumer or seller")
     private String role;
+
+    private String phoneNumber;
 }

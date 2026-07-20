@@ -57,7 +57,13 @@ export const authService = {
     try {
       const data = await api.post<BackendAuthResponse>(
         '/auth/sign-up',
-        { name: payload.name, email: payload.email, password: payload.password, role: payload.role },
+        {
+          name: payload.name,
+          email: payload.email,
+          password: payload.password,
+          role: payload.role,
+          phoneNumber: payload.phoneNumber,
+        },
         { skipAuth: true }
       );
       return { success: true, data: { user: data.user, tokens: mapTokens(data) } };
@@ -106,6 +112,15 @@ export const authService = {
       return { success: true, data: user };
     } catch (e: any) {
       return { success: false, message: e.message ?? 'Could not load profile', data: null as never };
+    }
+  },
+
+  async updateProfile(updates: { name?: string; avatarUrl?: string }): Promise<ApiResponse<User>> {
+    try {
+      const user = await api.put<User>('/users/me', updates);
+      return { success: true, data: user };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Could not update profile', data: null as never };
     }
   },
 

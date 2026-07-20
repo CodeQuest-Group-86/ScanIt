@@ -14,7 +14,7 @@ interface AuthState {
   isInitialized: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  signUp: (name: string, email: string, password: string, role: 'consumer' | 'seller') => Promise<boolean>;
+  signUp: (name: string, email: string, password: string, role: 'consumer' | 'seller', phoneNumber?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   clearError: () => void;
@@ -68,9 +68,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return true;
   },
 
-  signUp: async (name, email, password, role) => {
+  signUp: async (name, email, password, role, phoneNumber) => {
     set({ isLoading: true, error: null });
-    const res = await authService.signUp({ name, email, password, role });
+    const res = await authService.signUp({ name, email, password, role, phoneNumber });
     if (!res.success) {
       set({ isLoading: false, error: res.message ?? 'Sign up failed' });
       return false;

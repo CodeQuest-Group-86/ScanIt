@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuthStore } from '@/stores/auth';
+import { authService } from '@/services/auth';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import { Colors, Spacing, Typography, Radii } from '@/theme';
@@ -12,15 +13,18 @@ import { getInitials } from '@/utils/format';
 export default function EditProfileScreen() {
   const { user, updateUser } = useAuthStore();
   const [name, setName] = useState(user?.name ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Error', 'Name cannot be empty'); return; }
     setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    updateUser({ name: name.trim(), email: email.trim() });
+    const res = await authService.updateProfile({ name: name.trim() });
     setLoading(false);
+    if (!res.success) {
+      Alert.alert('Error', res.message ?? 'Could not update profile. Please try again.');
+      return;
+    }
+    updateUser(res.data);
     Alert.alert('Success', 'Profile updated successfully', [{ text: 'OK', onPress: () => router.back() }]);
   };
 
@@ -54,8 +58,8 @@ export default function EditProfileScreen() {
           />
           <Input
             label="Email"
-            value={email}
-            onChangeText={setEmail}
+            value={user?.email ?? ''}
+            editable={false}
             keyboardType="email-address"
             autoCapitalize="none"
             leftIcon="mail-outline"

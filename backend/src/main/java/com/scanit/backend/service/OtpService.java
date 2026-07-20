@@ -264,10 +264,11 @@ public class OtpService {
         }
 
         // Create placeholder — no password yet, filled during sign-up
+        boolean isSms = "sms".equalsIgnoreCase(channel);
         User placeholder = User.builder()
                 .name("")
-                .email("sms".equalsIgnoreCase(channel) ? contact + "@placeholder.scanit" : contact)
-                .phoneNumber(contact)
+                .email(isSms ? contact + "@placeholder.scanit" : contact)
+                .phoneNumber(isSms ? contact : null)
                 .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .role(com.scanit.backend.enums.UserRole.CONSUMER)
                 .build();
