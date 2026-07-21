@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
   bottomBar: {
     position: "absolute",
     bottom: 0,
-    left: 90,
+    left: 0,
     right: 0,
     flexDirection: "row",
     alignItems: "center",
