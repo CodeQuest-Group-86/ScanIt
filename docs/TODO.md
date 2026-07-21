@@ -1,21 +1,5 @@
 # ScanIt — What To Do
 
-Everything left to make this production-ready. Work top to bottom.
-
-Your session ID is 614b325e-d10e-4eb1-b396-3361b02c9fa1 — use that to resume this conversation later (e.g. claude --resume 614b325e-d10e-4eb1-b396-3361b02c9fa1 from the terminal, or your usual resume flow).
-
-Quick status so you can pick up cleanly:
-
-- Backend is still running in the background on port 8080 (PID 1424) with the old exception handler — the fix to log real errors was written to GlobalExceptionHandler.java but not yet compiled/restarted.
-- The actual cause of the /scans/analyze 500 error is still unknown — that was the next thing to diagnose.
-- Gemini + Resend keys are confirmed live and working (OTP email successfully sent to karldjansi123@gmail.com during testing).
-- Git cleanup (untracking node_modules, .env\*) is staged but not committed — still your call.
-- Maven + JDK 17 are now properly installed and on PATH for future sessions.
-
-We'll pick up right at re-testing the scan endpoint when you're back.
-
-✻ Brewed for 25s
-
 ---
 
 ## 1. Run it locally right now

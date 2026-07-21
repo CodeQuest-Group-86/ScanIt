@@ -67,6 +67,16 @@ public class User implements UserDetails {
     private String otpPurpose;
     private String phoneNumber;
 
+    // ── Subscription fields ──────────────────────────────────────────────────
+
+    /** "premium_monthly" or "premium_yearly" — null when never subscribed. */
+    private String subscriptionPlan;
+    @Builder.Default
+    private boolean subscriptionActive = false;
+    private Instant subscriptionExpiresAt;
+    /** Last Paystack transaction reference that activated the subscription (idempotency guard). */
+    private String lastPaymentReference;
+
     // ── UserDetails contract ──────────────────────────────────────────────────
 
     @Override

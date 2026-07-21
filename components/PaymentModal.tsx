@@ -10,7 +10,6 @@ import { useAuthStore } from '@/stores/auth';
 import { Colors, Radii, Spacing, Typography } from '@/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -21,7 +20,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { usePaystack } from 'react-native-paystack-webview';
+import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface PaymentModalProps {
@@ -33,60 +33,59 @@ interface PaymentModalProps {
 
 export default function PaymentModal({ visible, onClose, onSuccess, planId }: PaymentModalProps) {
   const { user } = useAuthStore();
+  const { popup } = usePaystack();
   const [selectedPlan, setSelectedPlan] = useState<string>(planId || PAYSTACK_PLANS[0].id);
-  const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [justPaid, setJustPaid] = useState(false);
 
   const selectedPlanData = PAYSTACK_PLANS.find(p => p.id === selectedPlan) || PAYSTACK_PLANS[0];
 
-  const handleSubscribe = async () => {
+  /**
+   * Opens Paystack's checkout as an in-app modal (WebView-backed, never leaves ScanIt
+   * or opens a browser). The client "success" callback only means the card was charged —
+   * the backend re-verifies the transaction with Paystack's secret key before we
+   * actually activate the subscription, so a tampered client can't grant itself premium.
+   */
+  const handleSubscribe = () => {
     if (!user?.email) {
       Alert.alert('Error', 'Please sign in to subscribe');
       return;
     }
 
-    setLoading(true);
-    try {
-      const reference = paymentService.generatePaymentReference();
-      const amountInPesewas = selectedPlanData.amount * 100; // Convert to pesewas
+    const reference = paymentService.generatePaymentReference();
 
-      const res = await paymentService.initializePayment({
-        email: user.email,
-        amount: amountInPesewas,
-        reference,
-        metadata: {
-          planId: selectedPlan,
-          userId: user.id,
-        },
-      });
-
-      if (res.success && res.data) {
-        // Open Paystack payment URL in browser
+    popup.checkout({
+      email: user.email,
+      amount: selectedPlanData.amount, // main currency unit (GHS) — library converts to pesewas
+      reference,
+      metadata: { planId: selectedPlan, userId: user.id },
+      onSuccess: async () => {
         setProcessing(true);
-        const result = await WebBrowser.openBrowserAsync(res.data.authorizationUrl);
-        
-        if (result.type === 'cancel') {
-          Alert.alert('Payment Cancelled', 'You cancelled the payment process');
-        } else if (result.type === 'dismiss') {
-          // Verify payment status
-          const verifyRes = await paymentService.verifyPayment(reference);
-          if (verifyRes.success && verifyRes.data?.status === 'success') {
-            Alert.alert('Payment Successful', 'Your subscription is now active!');
-            onSuccess?.();
-            onClose();
+        try {
+          const verifyRes = await paymentService.verifyPayment(reference, selectedPlan);
+          if (verifyRes.success && verifyRes.data?.isActive) {
+            setJustPaid(true);
+            setTimeout(() => {
+              setJustPaid(false);
+              onSuccess?.();
+              onClose();
+            }, 1600);
           } else {
-            Alert.alert('Payment Pending', 'Your payment is being processed');
+            Alert.alert('Payment Received', verifyRes.message ?? 'We charged your card but could not confirm the subscription yet. Contact support with reference ' + reference);
           }
+        } catch (e: any) {
+          Alert.alert('Verification Failed', e.message ?? 'Could not confirm payment. Contact support with reference ' + reference);
+        } finally {
+          setProcessing(false);
         }
-        setProcessing(false);
-      } else {
-        Alert.alert('Payment Error', res.message ?? 'Failed to initialize payment');
-      }
-    } catch (error: any) {
-      Alert.alert('Error', error.message ?? 'Something went wrong');
-    } finally {
-      setLoading(false);
-    }
+      },
+      onCancel: () => {
+        // user closed the Paystack sheet — nothing to do
+      },
+      onError: (err) => {
+        Alert.alert('Payment Error', err?.message ?? 'Something went wrong');
+      },
+    });
   };
 
   return (
@@ -188,17 +187,17 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
           {/* CTA Button */}
           <Animated.View entering={FadeInDown.delay(400)} style={styles.cta}>
             <TouchableOpacity
-              style={[styles.subscribeBtn, loading && styles.subscribeBtnDisabled]}
+              style={[styles.subscribeBtn, processing && styles.subscribeBtnDisabled]}
               onPress={handleSubscribe}
-              disabled={loading || processing}
+              disabled={processing}
               activeOpacity={0.8}
             >
               <LinearGradient
                 colors={Colors.gradientPrimary as any}
                 style={styles.subscribeBtnGradient}
               >
-                {loading || processing ? (
-                  <Text style={styles.subscribeBtnText}>Processing...</Text>
+                {processing ? (
+                  <Text style={styles.subscribeBtnText}>Confirming payment…</Text>
                 ) : (
                   <>
                     <Text style={styles.subscribeBtnText}>
@@ -210,11 +209,27 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
               </LinearGradient>
             </TouchableOpacity>
 
-            <Text style={styles.disclaimer}>
-              Secure payment powered by Paystack. Cancel anytime.
-            </Text>
+            <View style={styles.securedRow}>
+              <Ionicons name="lock-closed" size={12} color={Colors.textSecondary} />
+              <Text style={styles.disclaimer}>
+                Pay right here in the app · Secured by Paystack · Cancel anytime
+              </Text>
+            </View>
           </Animated.View>
         </ScrollView>
+
+        {/* Success overlay — shown briefly once the backend confirms the subscription */}
+        {justPaid && (
+          <Animated.View entering={FadeInDown} style={styles.successOverlay}>
+            <Animated.View entering={ZoomIn.springify()} style={styles.successCard}>
+              <LinearGradient colors={Colors.gradientPrimary as any} style={styles.successIcon}>
+                <Ionicons name="checkmark" size={40} color={Colors.white} />
+              </LinearGradient>
+              <Text style={styles.successTitle}>You&apos;re Premium!</Text>
+              <Text style={styles.successSubtitle}>Unlimited scans unlocked. Enjoy ScanIt.</Text>
+            </Animated.View>
+          </Animated.View>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -402,6 +417,46 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   disclaimer: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  securedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  successOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.xl,
+  },
+  successCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radii.xl,
+    padding: Spacing.xxl,
+    alignItems: 'center',
+    gap: Spacing.sm,
+    width: '100%',
+    maxWidth: 320,
+  },
+  successIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+  },
+  successTitle: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.extrabold,
+    color: Colors.text,
+  },
+  successSubtitle: {
     fontSize: Typography.sizes.sm,
     color: Colors.textSecondary,
     textAlign: 'center',

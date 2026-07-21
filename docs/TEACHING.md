@@ -66,15 +66,15 @@ The frontend (mobile app) talks to the backend over HTTP. Every request to a pro
 
 ### Technology choices
 
-| Tool | Why |
-|------|-----|
-| **Expo SDK 54** | Managed workflow — no native code to maintain |
-| **Expo Router** | File-based routing (like Next.js but for mobile) |
-| **TypeScript** | Type safety across the codebase |
-| **Zustand** | Simple, boilerplate-free global state |
-| **expo-camera** | Camera access for product scanning |
-| **expo-secure-store** | Encrypted storage for JWT tokens |
-| **AsyncStorage** | Non-sensitive storage (onboarding flags, saved products) |
+| Tool                  | Why                                                      |
+| --------------------- | -------------------------------------------------------- |
+| **Expo SDK 54**       | Managed workflow — no native code to maintain            |
+| **Expo Router**       | File-based routing (like Next.js but for mobile)         |
+| **TypeScript**        | Type safety across the codebase                          |
+| **Zustand**           | Simple, boilerplate-free global state                    |
+| **expo-camera**       | Camera access for product scanning                       |
+| **expo-secure-store** | Encrypted storage for JWT tokens                         |
+| **AsyncStorage**      | Non-sensitive storage (onboarding flags, saved products) |
 
 ### Screen structure
 
@@ -102,12 +102,12 @@ app/
 
 The app uses four Zustand stores:
 
-| Store | What it holds |
-|-------|---------------|
-| `authStore` | Logged-in user, JWT tokens, login/logout actions |
-| `scanStore` | Current scan result, scan history, session limit counter |
+| Store           | What it holds                                                    |
+| --------------- | ---------------------------------------------------------------- |
+| `authStore`     | Logged-in user, JWT tokens, login/logout actions                 |
+| `scanStore`     | Current scan result, scan history, session limit counter         |
 | `productsStore` | Search results, selected product, recommendations, notifications |
-| `savedStore` | Locally bookmarked products (synced from backend) |
+| `savedStore`    | Locally bookmarked products (synced from backend)                |
 
 ---
 
@@ -115,15 +115,15 @@ The app uses four Zustand stores:
 
 ### Technology choices
 
-| Tool | Why |
-|------|-----|
-| **Spring Boot 3.2** | Industry-standard Java web framework |
-| **Spring Security 6** | JWT authentication + role-based access control |
-| **Spring Data JPA** | Object-relational mapping with minimal boilerplate |
-| **H2** | In-memory database for development — zero setup |
-| **PostgreSQL** | Production database — reliable, widely used |
-| **jjwt 0.12.x** | Generate and validate JWT tokens |
-| **Lombok** | Eliminates repetitive Java boilerplate (`@Getter`, `@Builder`, etc.) |
+| Tool                  | Why                                                                  |
+| --------------------- | -------------------------------------------------------------------- |
+| **Spring Boot 3.2**   | Industry-standard Java web framework                                 |
+| **Spring Security 6** | JWT authentication + role-based access control                       |
+| **Spring Data JPA**   | Object-relational mapping with minimal boilerplate                   |
+| **H2**                | In-memory database for development — zero setup                      |
+| **PostgreSQL**        | Production database — reliable, widely used                          |
+| **jjwt 0.12.x**       | Generate and validate JWT tokens                                     |
+| **Lombok**            | Eliminates repetitive Java boilerplate (`@Getter`, `@Builder`, etc.) |
 
 ### Package structure
 
@@ -266,6 +266,7 @@ Product ────────────────────────
 ### The InventoryItem join table
 
 `InventoryItem` is the key linking entity. It connects a `Seller` to a `Product` with:
+
 - `price` — what the seller charges for the product
 - `stock` — how many units available
 - `listed` — whether it's visible to buyers
@@ -275,6 +276,7 @@ This is how the app shows "Tropical Juice is ₵2.90 at Makola Market, ₵3.20 a
 ### Product specs as JSON
 
 Products have different specifications per category:
+
 - Drinks: Volume, Sugar, pH Level, Shelf Life
 - Snacks: Weight, Cocoa Content, Calories
 - Care: Volume, Type, Ingredients
@@ -330,14 +332,14 @@ If validation fails, Spring automatically returns a 400 with a map of field → 
 
 All exceptions are caught by `GlobalExceptionHandler`:
 
-| Exception | HTTP Status |
-|-----------|-------------|
-| `ResourceNotFoundException` | 404 |
-| `BadRequestException` | 400 |
-| `BadCredentialsException` | 401 |
-| `AccessDeniedException` | 403 |
+| Exception                         | HTTP Status             |
+| --------------------------------- | ----------------------- |
+| `ResourceNotFoundException`       | 404                     |
+| `BadRequestException`             | 400                     |
+| `BadCredentialsException`         | 401                     |
+| `AccessDeniedException`           | 403                     |
 | `MethodArgumentNotValidException` | 400 (with field errors) |
-| Any other `Exception` | 500 |
+| Any other `Exception`             | 500                     |
 
 ---
 
@@ -350,6 +352,7 @@ All prices are in **GHS (Ghana Cedis)**, displayed with the ₵ symbol. The `cur
 ### Seller contact
 
 In Ghana's market culture, buyers contact sellers directly via phone and WhatsApp. Every `Seller` has:
+
 - `phone` — Ghana format: `+233XXXXXXXXX`
 - `whatsapp` — same number, used for direct chat
 
@@ -362,6 +365,7 @@ Products flagged as `SUSPICIOUS` (like the seeded Shea Butter Cream) are shown w
 ### Local markets
 
 The seed data includes real Accra market locations:
+
 - **Makola Market** — largest open-air market in Accra
 - **Accra Mall** — major shopping mall
 - **Kaneshie Market** — west Accra wholesale market
@@ -374,6 +378,7 @@ The seed data includes real Accra market locations:
 ### Why Spring Boot?
 
 Spring Boot is the most widely used Java web framework in enterprise and startup environments. It provides:
+
 - Dependency injection (less coupling between components)
 - Auto-configuration (zero XML, convention over configuration)
 - Built-in security framework
@@ -394,6 +399,7 @@ Java is verbose. A `User` class without Lombok would require ~100 lines of gette
 ### Why DataSeeder?
 
 The seeder runs on startup and checks `if (userRepository.count() > 0) return`. This means:
+
 - In development with H2: seeds fresh data on every restart
 - In production with PostgreSQL: seeds once, then skips forever
 
@@ -456,21 +462,21 @@ This gives developers a working app from the first run without any manual SQL.
 
 ## 11. Glossary
 
-| Term | Meaning |
-|------|---------|
-| **JWT** | JSON Web Token — a signed token that proves who a user is |
-| **Bearer token** | A JWT sent in the `Authorization: Bearer <token>` HTTP header |
-| **BCrypt** | A password hashing algorithm — never store plain-text passwords |
-| **JPA** | Java Persistence API — maps Java objects to database tables |
-| **Entity** | A Java class annotated with `@Entity` — represents a database table |
-| **Repository** | An interface extending `JpaRepository` — Spring generates SQL automatically |
-| **DTO** | Data Transfer Object — a class used only to carry data between layers |
-| **Service** | Business logic layer — sits between controllers and repositories |
-| **CORS** | Cross-Origin Resource Sharing — allows the app to call the API from a different domain |
-| **Seed data** | Sample data loaded into the database automatically for development |
-| **GHS** | Ghana Cedi (₵) — the currency of Ghana |
-| **Authenticity status** | Whether a product is `AUTHENTIC`, `SUSPICIOUS`, or `COUNTERFEIT` |
-| **InventoryItem** | The join between a Seller and a Product, with price and stock |
-| **Expo SecureStore** | Hardware-backed encrypted storage on iOS and Android |
-| **H2** | In-memory SQL database used during development |
-| **ddl-auto** | Controls whether Hibernate creates/updates/drops tables on startup |
+| Term                    | Meaning                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------- |
+| **JWT**                 | JSON Web Token — a signed token that proves who a user is                              |
+| **Bearer token**        | A JWT sent in the `Authorization: Bearer <token>` HTTP header                          |
+| **BCrypt**              | A password hashing algorithm — never store plain-text passwords                        |
+| **JPA**                 | Java Persistence API — maps Java objects to database tables                            |
+| **Entity**              | A Java class annotated with `@Entity` — represents a database table                    |
+| **Repository**          | An interface extending `JpaRepository` — Spring generates SQL automatically            |
+| **DTO**                 | Data Transfer Object — a class used only to carry data between layers                  |
+| **Service**             | Business logic layer — sits between controllers and repositories                       |
+| **CORS**                | Cross-Origin Resource Sharing — allows the app to call the API from a different domain |
+| **Seed data**           | Sample data loaded into the database automatically for development                     |
+| **GHS**                 | Ghana Cedi (₵) — the currency of Ghana                                                 |
+| **Authenticity status** | Whether a product is `AUTHENTIC`, `SUSPICIOUS`, or `COUNTERFEIT`                       |
+| **InventoryItem**       | The join between a Seller and a Product, with price and stock                          |
+| **Expo SecureStore**    | Hardware-backed encrypted storage on iOS and Android                                   |
+| **H2**                  | In-memory SQL database used during development                                         |
+| **ddl-auto**            | Controls whether Hibernate creates/updates/drops tables on startup                     |

@@ -1,36 +1,25 @@
 /**
  * services/payment.ts
  *
- * Paystack payment integration for ScanIt
- * Supports one-time payments and subscription management
+ * Paystack payment integration for ScanIt.
+ *
+ * SECURITY: the Paystack *secret* key must never live in this file or in any
+ * EXPO_PUBLIC_ env var — anything with that prefix gets bundled straight into
+ * the APK and can be extracted by anyone. Verifying a transaction and
+ * activating a subscription happens on the backend (services/../backend/.../PaymentService.java),
+ * which holds the secret key as a server-only env var. This file only ever
+ * touches the Paystack *public* key, which is safe to ship in the app.
  */
 
 import type { ApiResponse } from '@/types';
 import { api } from '@/utils/api';
 
-const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY || 'pk_live_74e29f7885f02e0c92e44b0e981dd26fea044376';
-const PAYSTACK_SECRET_KEY = process.env.EXPO_PUBLIC_PAYSTACK_SECRET_KEY || 'sk_live_3a4c203545a2e21f973b67f86eea4b3a5062e74a';
-
-export interface PaymentRequest {
-  email: string;
-  amount: number; // in GHS (smallest currency unit: pesewas)
-  reference?: string;
-  metadata?: Record<string, any>;
-}
-
-export interface PaymentResponse {
-  reference: string;
-  accessCode: string;
-  authorizationUrl: string;
-  amount: number;
-  status: 'success' | 'pending' | 'failed';
-}
+const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '';
 
 export interface VerifyPaymentResponse {
-  status: 'success' | 'failed' | 'pending';
-  amount: number;
-  reference: string;
-  metadata?: Record<string, any>;
+  isActive: boolean;
+  plan?: string;
+  expiresAt?: string;
 }
 
 export interface SubscriptionPlan {
@@ -42,6 +31,7 @@ export interface SubscriptionPlan {
   scanLimit: number;
 }
 
+/** Must stay in sync with PaymentService.PLANS on the backend (amount in GHS there is pesewas / 100). */
 export const PAYSTACK_PLANS: SubscriptionPlan[] = [
   {
     id: 'premium_monthly',
@@ -76,8 +66,13 @@ export const PAYSTACK_PLANS: SubscriptionPlan[] = [
 ];
 
 export const paymentService = {
+  /** Public key for the in-app Paystack checkout — safe to expose. */
+  getPublicKey(): string {
+    return PAYSTACK_PUBLIC_KEY;
+  },
+
   /**
-   * Generate a unique payment reference
+   * Generate a unique payment reference for this transaction attempt.
    */
   generatePaymentReference(): string {
     const timestamp = Date.now();
@@ -86,76 +81,14 @@ export const paymentService = {
   },
 
   /**
-   * Initialize a payment transaction with Paystack
-   * Returns authorization URL and access code for the payment modal
+   * After the in-app Paystack checkout reports success, the backend re-verifies
+   * the transaction with Paystack directly (using the secret key) before
+   * activating the subscription — the client's "success" callback is never trusted alone.
    */
-  async initializePayment(request: PaymentRequest): Promise<ApiResponse<PaymentResponse>> {
+  async verifyPayment(reference: string, planId: string): Promise<ApiResponse<VerifyPaymentResponse>> {
     try {
-      // Direct Paystack API call
-      const response = await fetch('https://api.paystack.co/transaction/initialize', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: request.email,
-          amount: request.amount,
-          reference: request.reference,
-          metadata: request.metadata,
-        }),
-      });
-
-      const result = await response.json();
-      
-      if (result.status) {
-        return { 
-          success: true, 
-          data: {
-            reference: result.data.reference,
-            accessCode: result.data.access_code,
-            authorizationUrl: result.data.authorization_url,
-            amount: result.data.amount,
-            status: result.data.status as 'success' | 'pending' | 'failed',
-          }
-        };
-      } else {
-        return { success: false, message: result.message ?? 'Failed to initialize payment', data: null as never };
-      }
-    } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to initialize payment', data: null as never };
-    }
-  },
-
-  /**
-   * Verify a payment transaction using its reference
-   */
-  async verifyPayment(reference: string): Promise<ApiResponse<VerifyPaymentResponse>> {
-    try {
-      // Direct Paystack API call
-      const response = await fetch(`https://api.paystack.co/transaction/verify/${reference}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-      
-      if (result.status) {
-        return { 
-          success: true, 
-          data: {
-            status: result.data.status as 'success' | 'failed' | 'pending',
-            amount: result.data.amount,
-            reference: result.data.reference,
-            metadata: result.data.metadata,
-          }
-        };
-      } else {
-        return { success: false, message: result.message ?? 'Failed to verify payment', data: null as never };
-      }
+      const data = await api.post<VerifyPaymentResponse>('/payments/verify', { reference, planId });
+      return { success: true, data };
     } catch (e: any) {
       return { success: false, message: e.message ?? 'Failed to verify payment', data: null as never };
     }
@@ -165,24 +98,7 @@ export const paymentService = {
    * Get available subscription plans
    */
   async getPlans(): Promise<ApiResponse<SubscriptionPlan[]>> {
-    try {
-      // Return static plans for now - can be fetched from backend later
-      return { success: true, data: PAYSTACK_PLANS };
-    } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to fetch plans', data: null as never };
-    }
-  },
-
-  /**
-   * Subscribe to a plan
-   */
-  async subscribeToPlan(planId: string): Promise<ApiResponse<PaymentResponse>> {
-    try {
-      const data = await api.post<PaymentResponse>('/payments/subscribe', { planId });
-      return { success: true, data };
-    } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to subscribe', data: null as never };
-    }
+    return { success: true, data: PAYSTACK_PLANS };
   },
 
   /**
@@ -190,8 +106,9 @@ export const paymentService = {
    */
   async getSubscriptionStatus(): Promise<ApiResponse<{ isActive: boolean; plan?: SubscriptionPlan; endDate?: string }>> {
     try {
-      const data = await api.get<{ isActive: boolean; plan?: SubscriptionPlan; endDate?: string }>('/payments/subscription');
-      return { success: true, data };
+      const data = await api.get<{ isActive: boolean; plan?: string; expiresAt?: string }>('/payments/subscription');
+      const plan = PAYSTACK_PLANS.find(p => p.id === data.plan);
+      return { success: true, data: { isActive: data.isActive, plan, endDate: data.expiresAt } };
     } catch (e: any) {
       return { success: false, message: e.message ?? 'Failed to fetch subscription status', data: null as never };
     }

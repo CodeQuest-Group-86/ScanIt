@@ -49,7 +49,8 @@ public class ScanService {
 
         // Step 1: Vision — identify the product
         GeminiService.ProductInfo gemini = geminiService.identifyProduct(imageBytes, mimeType);
-        Product matched = findOrCreateProduct(gemini);
+        MatchResult match = findOrCreateProduct(gemini);
+        Product matched = match.product();
 
         // Step 2: DuckDuckGo — find where to buy + Google Search links
         DuckDuckGoService.ProductSearch ddgSearch = null;
@@ -95,14 +96,19 @@ public class ScanService {
             productRepository.save(matched);
         }
 
-        double confidence = 92.0;
+        double confidence = gemini.confidence() > 0
+                ? gemini.confidence()
+                : (match.isNew() ? 78.0 : 90.0);
+
+        com.scanit.backend.enums.AuthenticityStatus scanAuthenticity =
+                parseAuthenticity(gemini.authenticity(), matched.getAuthenticity());
 
         ScanResult saved = scanResultRepository.save(
                 ScanResult.builder()
                         .user(user)
                         .product(matched)
                         .confidence(confidence)
-                        .authenticityStatus(matched.getAuthenticity())
+                        .authenticityStatus(scanAuthenticity)
                         .imageUri("upload")
                         .build()
         );
@@ -139,7 +145,7 @@ public class ScanService {
                 ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
                 if (!ddgSearch.snippets().isEmpty()) {
                     research = geminiService.researchFromSnippets(
-                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription()),
+                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null),
                         ddgSearch.snippets()
                     );
                 }
@@ -262,7 +268,9 @@ public class ScanService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private Product findOrCreateProduct(GeminiService.ProductInfo gemini) {
+    private record MatchResult(Product product, boolean isNew) {}
+
+    private MatchResult findOrCreateProduct(GeminiService.ProductInfo gemini) {
         if (gemini == null) {
             throw new com.scanit.backend.exception.InvalidObjectException(
                 "Could not identify a product in the image. Try a clearer shot."
@@ -277,7 +285,7 @@ public class ScanService {
                 .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(name, brand);
         if (!exact.isEmpty()) {
             log.debug("Gemini label '{}' matched existing product '{}'", name, exact.get(0).getName());
-            return exact.get(0);
+            return new MatchResult(exact.get(0), false);
         }
 
         // 2. Try individual words from the product name
@@ -287,14 +295,14 @@ public class ScanService {
                         .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(word, word);
                 if (!byWord.isEmpty()) {
                     log.debug("Word '{}' matched existing product '{}'", word, byWord.get(0).getName());
-                    return byWord.get(0);
+                    return new MatchResult(byWord.get(0), false);
                 }
             }
         }
 
         // 3. Auto-create with Gemini's description
         log.info("Auto-creating product from Gemini: '{}'", name);
-        return productRepository.save(Product.builder()
+        Product created = productRepository.save(Product.builder()
                 .name(name.substring(0, 1).toUpperCase() + name.substring(1))
                 .brand(brand)
                 .category(gemini.category())
@@ -303,8 +311,24 @@ public class ScanService {
                 .currency("GHS")
                 .origin("Ghana")
                 .verified(false)
-                .authenticity(com.scanit.backend.enums.AuthenticityStatus.AUTHENTIC)
+                .authenticity(parseAuthenticity(gemini.authenticity(), com.scanit.backend.enums.AuthenticityStatus.AUTHENTIC))
                 .build());
+        return new MatchResult(created, true);
+    }
+
+    /**
+     * Maps Gemini's per-scan authenticity read (from visible packaging) to the enum.
+     * Falls back to the product's existing stored value when Gemini didn't return one —
+     * a single photo shouldn't downgrade a long-established catalog product.
+     */
+    private com.scanit.backend.enums.AuthenticityStatus parseAuthenticity(
+            String raw, com.scanit.backend.enums.AuthenticityStatus fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return com.scanit.backend.enums.AuthenticityStatus.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
     }
 
     // ── DTO mapping ───────────────────────────────────────────────────────────
