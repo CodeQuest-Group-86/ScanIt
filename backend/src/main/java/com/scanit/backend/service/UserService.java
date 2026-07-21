@@ -94,6 +94,7 @@ public class UserService {
                 .email(user.getEmail())
                 .role(user.getRole().name().toLowerCase())
                 .avatarUrl(user.getAvatarUrl())
+                .phoneNumber(user.getPhoneNumber())
                 .scansCount(user.getScansCount())
                 .savedCount(user.getSavedCount())
                 .totalSaved(user.getTotalSaved())

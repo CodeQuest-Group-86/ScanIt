@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { View, TextInput, Text, TouchableOpacity, StyleSheet, ViewStyle, TextInputProps } from 'react-native';
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Colors, Radii, Spacing, Typography } from '@/theme';
+import React, { useState } from 'react';
+import { StyleSheet, Text, TextInput, TextInputProps, TouchableOpacity, View, ViewStyle } from 'react-native';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -34,7 +34,7 @@ export default function Input({
         ) : null}
         <TextInput
           style={styles.input}
-          placeholderTextColor={Colors.textSecondary}
+          placeholderTextColor={Colors.textMuted}
           secureTextEntry={secureEntry}
           autoCapitalize={isPassword ? 'none' : props.autoCapitalize}
           {...props}
@@ -56,7 +56,7 @@ export default function Input({
 
 const styles = StyleSheet.create({
   container: { gap: Spacing.xs },
-  label: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.medium, color: Colors.text },
+  label: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold, color: Colors.text, marginBottom: 2 },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -65,9 +65,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     paddingHorizontal: Spacing.md,
     minHeight: 52,
+    ...Shadows.sm,
   },
   inputNormal: { borderColor: Colors.border },
-  inputError: { borderColor: Colors.danger },
+  inputError: { borderColor: Colors.danger, backgroundColor: Colors.danger + '08' },
   leftIcon: { marginRight: Spacing.sm },
   rightIcon: { padding: Spacing.xs },
   input: {
@@ -76,5 +77,5 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingVertical: Spacing.sm,
   },
-  error: { fontSize: Typography.sizes.xs, color: Colors.danger, marginTop: 2 },
+  error: { fontSize: Typography.sizes.xs, color: Colors.danger, marginTop: 4, marginLeft: 4 },
 });

@@ -1,0 +1,3 @@
+live_secret_key=sk_live_3a4c203545a2e21f973b67f86eea4b3a5062e74a
+
+live_public_key=pk_live_74e29f7885f02e0c92e44b0e981dd26fea044376

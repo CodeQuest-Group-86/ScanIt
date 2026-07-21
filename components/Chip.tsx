@@ -1,6 +1,6 @@
+import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Radii, Spacing, Typography } from '@/theme';
+import { StyleSheet, Text, TouchableOpacity, ViewStyle } from 'react-native';
 
 interface ChipProps {
   label: string;
@@ -18,7 +18,7 @@ export default function Chip({ label, active = false, onPress, style, color }: C
       activeOpacity={0.7}
       style={[
         styles.chip,
-        active ? { backgroundColor: activeColor, borderColor: activeColor } : styles.inactive,
+        active ? { backgroundColor: activeColor, borderColor: activeColor, ...Shadows.sm } : styles.inactive,
         style,
       ]}>
       <Text style={[styles.label, active ? styles.labelActive : styles.labelInactive]}>{label}</Text>
@@ -29,14 +29,14 @@ export default function Chip({ label, active = false, onPress, style, color }: C
 const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.xs + 2,
     borderRadius: Radii.pill,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   inactive: { backgroundColor: Colors.white, borderColor: Colors.border },
-  label: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.medium },
+  label: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold },
   labelActive: { color: Colors.white },
   labelInactive: { color: Colors.textSecondary },
 });

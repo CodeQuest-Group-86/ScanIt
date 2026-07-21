@@ -24,6 +24,7 @@ export default function VerifyOtpScreen() {
     purpose: 'signup' | 'reset-password';
     name?: string;
     email?: string;
+    phone?: string;
     password?: string;
     role?: string;
     devCode?: string;
@@ -108,6 +109,7 @@ export default function VerifyOtpScreen() {
       params.email ?? contact,
       params.password ?? '',
       (params.role as 'consumer' | 'seller') ?? 'consumer',
+      params.phone,
     );
 
     setLoading(false);
@@ -170,6 +172,7 @@ export default function VerifyOtpScreen() {
         loading={loading}
         fullWidth
         size="lg"
+        variant="gradient"
       />
 
       <View style={styles.resendRow}>

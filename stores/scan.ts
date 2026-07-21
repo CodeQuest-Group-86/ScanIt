@@ -6,17 +6,13 @@ import { create } from 'zustand';
 const MAX_HISTORY = 50;
 const HISTORY_KEY = 'scanit_scan_history';
 const QUOTA_KEY = 'scanit_scan_quota';
-const FREE_SCANS_PER_DAY = 100; // TODO: restore to 5 before launch
+const FREE_SCANS_LIFETIME = 3; // 3 free lifetime scans before payment required
 
 // ── Quota helpers ──────────────────────────────────────────────────────────
 
 interface QuotaRecord {
-  date: string;   // YYYY-MM-DD
-  count: number;
-}
-
-function todayString(): string {
-  return new Date().toISOString().slice(0, 10);
+  totalScans: number;
+  isPremium: boolean;
 }
 
 async function loadQuota(): Promise<QuotaRecord> {
@@ -24,10 +20,10 @@ async function loadQuota(): Promise<QuotaRecord> {
     const raw = await AsyncStorage.getItem(QUOTA_KEY);
     if (raw) {
       const q: QuotaRecord = JSON.parse(raw);
-      if (q.date === todayString()) return q;
+      return q;
     }
   } catch { /* ignore */ }
-  return { date: todayString(), count: 0 };
+  return { totalScans: 0, isPremium: false };
 }
 
 async function saveQuota(q: QuotaRecord): Promise<void> {
@@ -47,8 +43,8 @@ interface ScanState {
   offlineMode: boolean;
 
   // quota
-  dailyScansUsed: number;
-  dailyScansLimit: number;
+  totalScansUsed: number;
+  lifetimeScansLimit: number;
   isPremium: boolean;
   showPaywall: boolean;
   historyLoaded: boolean;
@@ -61,6 +57,7 @@ interface ScanState {
   loadHistory: () => Promise<void>;
   initQuota: () => Promise<void>;
   dismissPaywall: () => void;
+  setPremium: (isPremium: boolean) => void;
 }
 
 export const useScanStore = create<ScanState>((set, get) => ({
@@ -74,8 +71,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   analyzingStage: null,
   aiAnalysis: null,
   offlineMode: false,
-  dailyScansUsed: 0,
-  dailyScansLimit: FREE_SCANS_PER_DAY,
+  totalScansUsed: 0,
+  lifetimeScansLimit: FREE_SCANS_LIFETIME,
   isPremium: false,
   showPaywall: false,
   historyLoaded: false,
@@ -84,7 +81,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   initQuota: async () => {
     const q = await loadQuota();
-    set({ dailyScansUsed: q.count });
+    set({ totalScansUsed: q.totalScans, isPremium: q.isPremium });
 
     // Restore history from AsyncStorage
     try {
@@ -103,8 +100,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   // ── Camera / gallery scan ────────────────────────────────────────────────
 
   analyze: async (imageUri) => {
-    const { dailyScansUsed, dailyScansLimit, isPremium } = get();
-    if (!isPremium && dailyScansUsed >= dailyScansLimit) {
+    const { totalScansUsed, lifetimeScansLimit, isPremium } = get();
+    if (!isPremium && totalScansUsed >= lifetimeScansLimit) {
       set({ showPaywall: true });
       return;
     }
@@ -133,8 +130,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
       }
 
       const newHistory = [res.data!, ...get().history].slice(0, MAX_HISTORY);
-      const newUsed = dailyScansUsed + 1;
-      const quota: QuotaRecord = { date: todayString(), count: newUsed };
+      const newUsed = totalScansUsed + 1;
+      const quota: QuotaRecord = { totalScans: newUsed, isPremium };
       await saveQuota(quota);
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
 
@@ -146,7 +143,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
         offlineMode: res.data!.offlineMode ?? false,
         sessionScans: s.sessionScans + 1,
         history: newHistory,
-        dailyScansUsed: newUsed,
+        totalScansUsed: newUsed,
       }));
     } catch (e: any) {
       set({ isAnalyzing: false, analyzingStage: null, error: e?.message ?? 'Scan failed. Please try again.' });
@@ -156,8 +153,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   // ── Barcode scan ─────────────────────────────────────────────────────────
 
   analyzeBarcode: async (code) => {
-    const { dailyScansUsed, dailyScansLimit, isPremium } = get();
-    if (!isPremium && dailyScansUsed >= dailyScansLimit) {
+    const { totalScansUsed, lifetimeScansLimit, isPremium } = get();
+    if (!isPremium && totalScansUsed >= lifetimeScansLimit) {
       set({ showPaywall: true });
       return;
     }
@@ -172,8 +169,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
       }
 
       const newHistory = [res.data, ...get().history].slice(0, MAX_HISTORY);
-      const newUsed = dailyScansUsed + 1;
-      const quota: QuotaRecord = { date: todayString(), count: newUsed };
+      const newUsed = totalScansUsed + 1;
+      const quota: QuotaRecord = { totalScans: newUsed, isPremium };
       await saveQuota(quota);
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
 
@@ -185,7 +182,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
         offlineMode: false,
         sessionScans: s.sessionScans + 1,
         history: newHistory,
-        dailyScansUsed: newUsed,
+        totalScansUsed: newUsed,
       }));
     } catch (e: any) {
       set({
@@ -207,6 +204,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
   resetSession: () => set({ sessionScans: 0, canScan: true, currentResult: null, aiAnalysis: null, offlineMode: false }),
 
   dismissPaywall: () => set({ showPaywall: false }),
+
+  setPremium: async (isPremium: boolean) => {
+    const { totalScansUsed } = get();
+    const quota: QuotaRecord = { totalScans: totalScansUsed, isPremium };
+    await saveQuota(quota);
+    set({ isPremium, showPaywall: false });
+  },
 
   loadHistory: async () => {
     try {

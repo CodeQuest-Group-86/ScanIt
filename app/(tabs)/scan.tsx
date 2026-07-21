@@ -46,8 +46,8 @@ export default function ScanScreen() {
     analyzingStage,
     error,
     offlineMode,
-    dailyScansUsed,
-    dailyScansLimit,
+    totalScansUsed,
+    lifetimeScansLimit,
     isPremium,
   } = useScanStore();
 
@@ -164,7 +164,7 @@ export default function ScanScreen() {
     outputRange: [0, 200],
   });
 
-  const scansLeft = Math.max(0, dailyScansLimit - dailyScansUsed);
+  const scansLeft = Math.max(0, lifetimeScansLimit - totalScansUsed);
 
   return (
     <View style={styles.container}>

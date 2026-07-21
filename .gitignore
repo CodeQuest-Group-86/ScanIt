@@ -32,13 +32,19 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env.production
 
 # typescript
 *.tsbuildinfo
 
-app-example
+# app-example
 
 # generated native folders
 /ios
 /android
 .aider*
+
+# backend
+backend/target/
+backend/run-local.ps1
+backend/src/main/resources/application-local.yml

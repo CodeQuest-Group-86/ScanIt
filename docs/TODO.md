@@ -2,6 +2,20 @@
 
 Everything left to make this production-ready. Work top to bottom.
 
+Your session ID is 614b325e-d10e-4eb1-b396-3361b02c9fa1 — use that to resume this conversation later (e.g. claude --resume 614b325e-d10e-4eb1-b396-3361b02c9fa1 from the terminal, or your usual resume flow).
+
+Quick status so you can pick up cleanly:
+
+- Backend is still running in the background on port 8080 (PID 1424) with the old exception handler — the fix to log real errors was written to GlobalExceptionHandler.java but not yet compiled/restarted.
+- The actual cause of the /scans/analyze 500 error is still unknown — that was the next thing to diagnose.
+- Gemini + Resend keys are confirmed live and working (OTP email successfully sent to karldjansi123@gmail.com during testing).
+- Git cleanup (untracking node_modules, .env\*) is staged but not committed — still your call.
+- Maven + JDK 17 are now properly installed and on PATH for future sessions.
+
+We'll pick up right at re-testing the scan endpoint when you're back.
+
+✻ Brewed for 25s
+
 ---
 
 ## 1. Run it locally right now
@@ -23,14 +37,14 @@ Each model activates when you add its key/URL to `.env.local`. Without a key it 
 
 ### AI Model Cost Breakdown
 
-| Model | Role | Cost | Notes |
-|---|---|---|---|
-| **Google Vision API** | Product recognition | **PAID** after 1,000 req/month | $1.50 per 1,000 units beyond free tier |
-| **TensorFlow Lite** | On-device classification | **FREE** | Open source, runs on device, no API needed |
-| **MobileNet** | On-device object classification | **FREE** | Open source, runs on device via TF.js |
-| **CLIP** | Visual similarity matching | **FREE** (self-hosted) | OpenAI released weights publicly; you host it |
-| **ResNet-50** | Counterfeit detection | **FREE** (self-hosted) | Open source model; you host it |
-| **BERT / Sentence Transformers** | Semantic search | **FREE** (self-hosted) | HuggingFace open source; you host it |
+| Model                            | Role                            | Cost                           | Notes                                         |
+| -------------------------------- | ------------------------------- | ------------------------------ | --------------------------------------------- |
+| **Google Vision API**            | Product recognition             | **PAID** after 1,000 req/month | $1.50 per 1,000 units beyond free tier        |
+| **TensorFlow Lite**              | On-device classification        | **FREE**                       | Open source, runs on device, no API needed    |
+| **MobileNet**                    | On-device object classification | **FREE**                       | Open source, runs on device via TF.js         |
+| **CLIP**                         | Visual similarity matching      | **FREE** (self-hosted)         | OpenAI released weights publicly; you host it |
+| **ResNet-50**                    | Counterfeit detection           | **FREE** (self-hosted)         | Open source model; you host it                |
+| **BERT / Sentence Transformers** | Semantic search                 | **FREE** (self-hosted)         | HuggingFace open source; you host it          |
 
 **Summary:** Only Google Vision API costs money. Every other model is free — either on-device or self-hosted.
 
@@ -41,6 +55,7 @@ Each model activates when you add its key/URL to `.env.local`. Without a key it 
 Replace `EXPO_PUBLIC_GOOGLE_VISION_KEY` with one of these — all have free tiers that are more than enough for development and early production.
 
 #### Option 1 — Hugging Face Inference API (Best free pick)
+
 - **Free tier:** ~30,000 requests/month on the free plan
 - **Model to use:** `google/vit-base-patch16-224` (image classification) or `facebook/detr-resnet-50` (object detection)
 - **How to set up:**
@@ -52,17 +67,20 @@ Replace `EXPO_PUBLIC_GOOGLE_VISION_KEY` with one of these — all have free tier
   3. In `services/ai.ts`, replace the `googleVision()` adapter with:
      ```ts
      const r = await fetch(
-       'https://api-inference.huggingface.co/models/google/vit-base-patch16-224',
+       "https://api-inference.huggingface.co/models/google/vit-base-patch16-224",
        {
-         method: 'POST',
-         headers: { Authorization: `Bearer ${process.env.EXPO_PUBLIC_HF_TOKEN}` },
+         method: "POST",
+         headers: {
+           Authorization: `Bearer ${process.env.EXPO_PUBLIC_HF_TOKEN}`,
+         },
          body: imageBlob,
-       }
+       },
      );
      const json = await r.json(); // [{ label, score }, ...]
      ```
 
 #### Option 2 — Azure Computer Vision (Generous free tier)
+
 - **Free tier:** 5,000 transactions/month (F0 tier) — no credit card needed
 - **How to set up:**
   1. portal.azure.com → Create resource → Computer Vision → F0 tier
@@ -74,6 +92,7 @@ Replace `EXPO_PUBLIC_GOOGLE_VISION_KEY` with one of these — all have free tier
      ```
 
 #### Option 3 — Clarifai (Easiest to start)
+
 - **Free tier:** 1,000 operations/month on the community plan
 - **Model:** `general-image-recognition` (pre-trained on 11,000 concepts)
 - **How to set up:**
@@ -93,8 +112,10 @@ Replace `EXPO_PUBLIC_GOOGLE_VISION_KEY` with one of these — all have free tier
 2. Add a product classifier `.tflite` model to `assets/models/product_classifier.tflite` (train one or use a pre-trained MobileNetV2)
 3. In `services/ai.ts`, replace the `tflite()` and `mobileNet()` functions with real inference:
    ```ts
-   import { loadTensorflowModel } from 'react-native-fast-tflite';
-   const model = await loadTensorflowModel(require('../assets/models/product_classifier.tflite'));
+   import { loadTensorflowModel } from "react-native-fast-tflite";
+   const model = await loadTensorflowModel(
+     require("../assets/models/product_classifier.tflite"),
+   );
    const output = await model.run([imageTensor]);
    ```
 
@@ -209,6 +230,7 @@ EAS builds in the cloud and gives you a download link for the APK. Share it dire
 The seeder adds 6 demo products. To add real Ghanaian market products:
 
 **Option A — via the API (recommended)**
+
 ```bash
 curl -X POST https://YOUR_BACKEND/api/v1/products \
   -H "Authorization: Bearer SELLER_JWT" \
@@ -260,19 +282,19 @@ Without email config, forgot-password still works — it just doesn't send an em
 
 ## File map (what does what)
 
-| File | Purpose |
-|---|---|
-| `services/ai.ts` | All AI model adapters — edit here to wire real APIs |
-| `services/scan.ts` | Scan pipeline — parallel backend + AI call |
-| `services/auth.ts` | Auth API calls |
-| `services/products.ts` | Product/notification/inventory API calls |
-| `utils/api.ts` | HTTP client — reads `EXPO_PUBLIC_API_URL`, handles JWT refresh |
-| `.env.local` | All env vars — API URL, AI keys |
-| `backend/src/.../service/ScanService.java` | Product matching logic — replace hash with Vision labels here |
-| `backend/src/.../seed/DataSeeder.java` | Adds demo data on first boot — add real products here |
-| `backend/src/.../config/SecurityConfig.java` | Which endpoints are public vs require JWT |
-| `docker-compose.yml` | Local dev stack |
-| `railway.toml` | Railway deployment config |
-| `docs/DEPLOYMENT.md` | Full deploy guide |
-| `docs/AI_ARCHITECTURE.md` | How each AI model works and how to swap in real ones |
-| `docs/SETUP.md` | Local setup guide |
+| File                                         | Purpose                                                        |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| `services/ai.ts`                             | All AI model adapters — edit here to wire real APIs            |
+| `services/scan.ts`                           | Scan pipeline — parallel backend + AI call                     |
+| `services/auth.ts`                           | Auth API calls                                                 |
+| `services/products.ts`                       | Product/notification/inventory API calls                       |
+| `utils/api.ts`                               | HTTP client — reads `EXPO_PUBLIC_API_URL`, handles JWT refresh |
+| `.env.local`                                 | All env vars — API URL, AI keys                                |
+| `backend/src/.../service/ScanService.java`   | Product matching logic — replace hash with Vision labels here  |
+| `backend/src/.../seed/DataSeeder.java`       | Adds demo data on first boot — add real products here          |
+| `backend/src/.../config/SecurityConfig.java` | Which endpoints are public vs require JWT                      |
+| `docker-compose.yml`                         | Local dev stack                                                |
+| `railway.toml`                               | Railway deployment config                                      |
+| `docs/DEPLOYMENT.md`                         | Full deploy guide                                              |
+| `docs/AI_ARCHITECTURE.md`                    | How each AI model works and how to swap in real ones           |
+| `docs/SETUP.md`                              | Local setup guide                                              |

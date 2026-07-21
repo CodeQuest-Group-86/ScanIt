@@ -15,6 +15,7 @@ public class UserDto {
     private String email;
     private String role;
     private String avatarUrl;
+    private String phoneNumber;
     private int scansCount;
     private int savedCount;
     private double totalSaved;

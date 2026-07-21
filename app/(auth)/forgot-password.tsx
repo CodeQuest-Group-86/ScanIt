@@ -140,6 +140,7 @@ export default function ForgotPasswordScreen() {
         loading={loading}
         fullWidth
         size="lg"
+        variant="gradient"
       />
 
       <View style={styles.steps}>
