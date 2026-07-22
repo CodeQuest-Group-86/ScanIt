@@ -6,7 +6,7 @@ import { warmUpBackend } from '@/utils/api';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
@@ -23,15 +23,33 @@ import Animated, {
 
 const BRACKET_SIZE = 168;
 
+const STATUS_MESSAGES = [
+  'Waking up the server…',
+  'This can take a moment on first launch…',
+  'Almost there…',
+  'Still working on it…',
+];
+
 export default function EntryPoint() {
   const { isInitialized, user } = useAuthStore();
+  const [backendReady, setBackendReady] = useState(false);
+  const [statusIndex, setStatusIndex] = useState(0);
 
   const scanLine = useSharedValue(0);
   const glow = useSharedValue(0);
 
   useEffect(() => {
-    warmUpBackend();
+    warmUpBackend().finally(() => setBackendReady(true));
   }, []);
+
+  // Cycle reassuring status copy for as long as the cold-start wait runs.
+  useEffect(() => {
+    if (backendReady) return;
+    const id = setInterval(() => {
+      setStatusIndex(i => (i + 1) % STATUS_MESSAGES.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [backendReady]);
 
   useEffect(() => {
     scanLine.value = withRepeat(
@@ -50,7 +68,7 @@ export default function EntryPoint() {
   }, [scanLine, glow]);
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || !backendReady) return;
 
     const check = async () => {
       const onboardingDone = await AsyncStorage.getItem('scanit_onboarding_complete');
@@ -63,7 +81,7 @@ export default function EntryPoint() {
       }
     };
     check();
-  }, [isInitialized, user]);
+  }, [isInitialized, backendReady, user]);
 
   const scanLineStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: interpolate(scanLine.value, [0, 1], [-58, 58]) }],
@@ -84,7 +102,7 @@ export default function EntryPoint() {
           <Animated.View style={[styles.glow, glowStyle]} />
           <ScanBracket size={BRACKET_SIZE} color={Colors.primary} thickness={3} cornerLength={30} />
           <View style={styles.markCenter}>
-            <Ionicons name="shield-checkmark-outline" size={50} color={Colors.primary} />
+            <Ionicons name="shield-checkmark" size={50} color={Colors.primary} />
           </View>
           <Animated.View style={[styles.scanLine, scanLineStyle]} />
         </Animated.View>
@@ -100,7 +118,9 @@ export default function EntryPoint() {
 
         <Animated.View entering={FadeIn.delay(650)} style={styles.statusRow}>
           <PulsingDots />
-          <Text style={styles.statusText}>Waking up…</Text>
+          <Text style={styles.statusText}>
+            {backendReady ? 'Ready' : STATUS_MESSAGES[statusIndex]}
+          </Text>
         </Animated.View>
       </View>
     </View>

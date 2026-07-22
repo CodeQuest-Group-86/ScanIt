@@ -190,7 +190,10 @@ const Subscribe = () => {
         {/* CTA Button */}
         <Animated.View entering={FadeInDown.delay(400)} style={styles.cta}>
           <TouchableOpacity
-            style={[styles.subscribeBtn, processing && styles.subscribeBtnDisabled]}
+            style={[
+              styles.subscribeBtn,
+              processing && styles.subscribeBtnDisabled,
+            ]}
             onPress={handleSubscribe}
             disabled={processing}
             activeOpacity={0.8}
