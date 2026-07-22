@@ -1,10 +1,11 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 
 const Subscribe = () => {
   return (
     <View>
       <Text>Subscribe</Text>
+      <TouchableOpacity></TouchableOpacity>
     </View>
   );
 };

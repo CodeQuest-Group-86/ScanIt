@@ -157,7 +157,8 @@ export default function ScanScreen() {
           <Ionicons name="camera-outline" size={72} color={Colors.white} />
           <Text style={styles.permissionTitle}>Camera Access Required</Text>
           <Text style={styles.permissionBody}>
-            ScanIt needs camera access to scan and identify products.
+            ScanIt needs your camera to access and to scan as well identify
+            products.
           </Text>
           <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
             <Text style={styles.grantBtnText}>Grant Access</Text>
