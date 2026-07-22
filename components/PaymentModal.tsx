@@ -5,24 +5,24 @@
  * Shows subscription plans and handles payment flow
  */
 
-import { paymentService, PAYSTACK_PLANS } from '@/services/payment';
-import { useAuthStore } from '@/stores/auth';
-import { Colors, Radii, Spacing, Typography } from '@/theme';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import { paymentService, PAYSTACK_PLANS } from "@/services/payment";
+import { useAuthStore } from "@/stores/auth";
+import { Colors, Radii, Spacing, Typography } from "@/theme";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useState } from "react";
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import { usePaystack } from 'react-native-paystack-webview';
-import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  Alert,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { usePaystack } from "react-native-paystack-webview";
+import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface PaymentModalProps {
   visible: boolean;
@@ -31,14 +31,22 @@ interface PaymentModalProps {
   planId?: string;
 }
 
-export default function PaymentModal({ visible, onClose, onSuccess, planId }: PaymentModalProps) {
+export default function PaymentModal({
+  visible,
+  onClose,
+  onSuccess,
+  planId,
+}: PaymentModalProps) {
   const { user } = useAuthStore();
   const { popup } = usePaystack();
-  const [selectedPlan, setSelectedPlan] = useState<string>(planId || PAYSTACK_PLANS[0].id);
+  const [selectedPlan, setSelectedPlan] = useState<string>(
+    planId || PAYSTACK_PLANS[0].id,
+  );
   const [processing, setProcessing] = useState(false);
   const [justPaid, setJustPaid] = useState(false);
 
-  const selectedPlanData = PAYSTACK_PLANS.find(p => p.id === selectedPlan) || PAYSTACK_PLANS[0];
+  const selectedPlanData =
+    PAYSTACK_PLANS.find((p) => p.id === selectedPlan) || PAYSTACK_PLANS[0];
 
   /**
    * Opens Paystack's checkout as an in-app modal (WebView-backed, never leaves ScanIt
@@ -48,7 +56,7 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
    */
   const handleSubscribe = () => {
     if (!user?.email) {
-      Alert.alert('Error', 'Please sign in to subscribe');
+      Alert.alert("Error", "Please sign in to subscribe");
       return;
     }
 
@@ -62,7 +70,10 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
       onSuccess: async () => {
         setProcessing(true);
         try {
-          const verifyRes = await paymentService.verifyPayment(reference, selectedPlan);
+          const verifyRes = await paymentService.verifyPayment(
+            reference,
+            selectedPlan,
+          );
           if (verifyRes.success && verifyRes.data?.isActive) {
             setJustPaid(true);
             setTimeout(() => {
@@ -71,10 +82,20 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
               onClose();
             }, 1600);
           } else {
-            Alert.alert('Payment Received', verifyRes.message ?? 'We charged your card but could not confirm the subscription yet. Contact support with reference ' + reference);
+            Alert.alert(
+              "Payment Received",
+              verifyRes.message ??
+                "We charged your card but could not confirm the subscription yet. Contact support with reference " +
+                  reference,
+            );
           }
         } catch (e: any) {
-          Alert.alert('Verification Failed', e.message ?? 'Could not confirm payment. Contact support with reference ' + reference);
+          Alert.alert(
+            "Verification Failed",
+            e.message ??
+              "Could not confirm payment. Contact support with reference " +
+                reference,
+          );
         } finally {
           setProcessing(false);
         }
@@ -83,7 +104,7 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
         // user closed the Paystack sheet — nothing to do
       },
       onError: (err) => {
-        Alert.alert('Payment Error', err?.message ?? 'Something went wrong');
+        Alert.alert("Payment Error", err?.message ?? "Something went wrong");
       },
     });
   };
@@ -118,35 +139,50 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
           {/* Hero Section */}
           <Animated.View entering={FadeInDown.delay(100)} style={styles.hero}>
             <View style={styles.iconContainer}>
-              <Ionicons name="diamond-outline" size={48} color={Colors.primary} />
+              <Ionicons
+                name="diamond-outline"
+                size={48}
+                color={Colors.primary}
+              />
             </View>
             <Text style={styles.heroTitle}>Unlock Unlimited Scans</Text>
             <Text style={styles.heroSubtitle}>
-              Get the most out of ScanIt with premium features and unlimited product scans
+              Get the most out of ScanIt with premium features and unlimited
+              product scans
             </Text>
           </Animated.View>
 
           {/* Features List */}
-          <Animated.View entering={FadeInDown.delay(200)} style={styles.features}>
+          <Animated.View
+            entering={FadeInDown.delay(200)}
+            style={styles.features}
+          >
             {[
-              'Unlimited product scans',
-              'Priority AI processing',
-              'Advanced authenticity detection',
-              'Price history tracking',
-              'No advertisements',
-              'Exclusive seller insights',
+              "Unlimited product scans",
+              "Priority AI processing",
+              "Advanced authenticity detection",
+              "Price history tracking",
+              "No advertisements",
+              "Exclusive seller insights",
             ].map((feature, index) => (
               <View key={index} style={styles.featureItem}>
-                <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={Colors.success}
+                />
                 <Text style={styles.featureText}>{feature}</Text>
               </View>
             ))}
           </Animated.View>
 
           {/* Plans */}
-          <Animated.View entering={FadeInDown.delay(300)} style={styles.plansSection}>
+          <Animated.View
+            entering={FadeInDown.delay(300)}
+            style={styles.plansSection}
+          >
             <Text style={styles.sectionTitle}>Choose Your Plan</Text>
-            
+
             {PAYSTACK_PLANS.map((plan) => (
               <TouchableOpacity
                 key={plan.id}
@@ -162,11 +198,13 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
                   <View style={styles.priceContainer}>
                     <Text style={styles.currency}>GHS</Text>
                     <Text style={styles.price}>{plan.amount}</Text>
-                    <Text style={styles.interval}>/{plan.interval === 'monthly' ? 'mo' : 'yr'}</Text>
+                    <Text style={styles.interval}>
+                      /{plan.interval === "monthly" ? "mo" : "yr"}
+                    </Text>
                   </View>
                 </View>
-                
-                {plan.interval === 'yearly' && (
+
+                {plan.interval === "yearly" && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>Save 17%</Text>
                   </View>
@@ -175,7 +213,11 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
                 <View style={styles.planFeatures}>
                   {plan.features.slice(0, 4).map((feature, i) => (
                     <View key={i} style={styles.planFeatureItem}>
-                      <Ionicons name="checkmark" size={16} color={Colors.primary} />
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={Colors.primary}
+                      />
                       <Text style={styles.planFeatureText}>{feature}</Text>
                     </View>
                   ))}
@@ -187,7 +229,10 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
           {/* CTA Button */}
           <Animated.View entering={FadeInDown.delay(400)} style={styles.cta}>
             <TouchableOpacity
-              style={[styles.subscribeBtn, processing && styles.subscribeBtnDisabled]}
+              style={[
+                styles.subscribeBtn,
+                processing && styles.subscribeBtnDisabled,
+              ]}
               onPress={handleSubscribe}
               disabled={processing}
               activeOpacity={0.8}
@@ -197,20 +242,30 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
                 style={styles.subscribeBtnGradient}
               >
                 {processing ? (
-                  <Text style={styles.subscribeBtnText}>Confirming payment…</Text>
+                  <Text style={styles.subscribeBtnText}>
+                    Confirming payment…
+                  </Text>
                 ) : (
                   <>
                     <Text style={styles.subscribeBtnText}>
                       Subscribe for GHS {selectedPlanData.amount}
                     </Text>
-                    <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+                    <Ionicons
+                      name="arrow-forward"
+                      size={20}
+                      color={Colors.white}
+                    />
                   </>
                 )}
               </LinearGradient>
             </TouchableOpacity>
 
             <View style={styles.securedRow}>
-              <Ionicons name="lock-closed" size={12} color={Colors.textSecondary} />
+              <Ionicons
+                name="lock-closed"
+                size={12}
+                color={Colors.textSecondary}
+              />
               <Text style={styles.disclaimer}>
                 Pay right here in the app · Secured by Paystack · Cancel anytime
               </Text>
@@ -221,12 +276,20 @@ export default function PaymentModal({ visible, onClose, onSuccess, planId }: Pa
         {/* Success overlay — shown briefly once the backend confirms the subscription */}
         {justPaid && (
           <Animated.View entering={FadeInDown} style={styles.successOverlay}>
-            <Animated.View entering={ZoomIn.springify()} style={styles.successCard}>
-              <LinearGradient colors={Colors.gradientPrimary as any} style={styles.successIcon}>
+            <Animated.View
+              entering={ZoomIn.springify()}
+              style={styles.successCard}
+            >
+              <LinearGradient
+                colors={Colors.gradientPrimary as any}
+                style={styles.successIcon}
+              >
                 <Ionicons name="checkmark" size={40} color={Colors.white} />
               </LinearGradient>
               <Text style={styles.successTitle}>You&apos;re Premium!</Text>
-              <Text style={styles.successSubtitle}>Unlimited scans unlocked. Enjoy ScanIt.</Text>
+              <Text style={styles.successSubtitle}>
+                Unlimited scans unlocked. Enjoy ScanIt.
+              </Text>
             </Animated.View>
           </Animated.View>
         )}
@@ -241,9 +304,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
@@ -252,8 +315,8 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 40,
     height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     fontSize: Typography.sizes.lg,
@@ -271,16 +334,16 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxxl,
   },
   hero: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: Spacing.xxl,
   },
   iconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.primary + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: Colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.lg,
   },
   heroTitle: {
@@ -288,12 +351,12 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.extrabold,
     color: Colors.text,
     marginBottom: Spacing.sm,
-    textAlign: 'center',
+    textAlign: "center",
   },
   heroSubtitle: {
     fontSize: Typography.sizes.md,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 22,
   },
   features: {
@@ -301,8 +364,8 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   featureText: {
@@ -326,16 +389,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     borderWidth: 2,
     borderColor: Colors.border,
-    position: 'relative',
+    position: "relative",
   },
   planCardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    backgroundColor: Colors.primary + "08",
   },
   planHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.md,
   },
   planName: {
@@ -344,8 +407,8 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   priceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+    flexDirection: "row",
+    alignItems: "baseline",
   },
   currency: {
     fontSize: Typography.sizes.sm,
@@ -364,7 +427,7 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   badge: {
-    position: 'absolute',
+    position: "absolute",
     top: -10,
     right: Spacing.lg,
     backgroundColor: Colors.success,
@@ -381,8 +444,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   planFeatureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
   },
   planFeatureText: {
@@ -390,22 +453,22 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   cta: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.md,
   },
   subscribeBtn: {
-    width: '100%',
+    width: "100%",
     borderRadius: Radii.xl,
-    overflow: 'hidden',
+    overflow: "hidden",
     minHeight: 56,
   },
   subscribeBtnDisabled: {
     opacity: 0.6,
   },
   subscribeBtnGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.sm,
     paddingHorizontal: Spacing.xxl,
     paddingVertical: Spacing.lg,
@@ -419,36 +482,36 @@ const styles = StyleSheet.create({
   disclaimer: {
     fontSize: Typography.sizes.xs,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   securedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 4,
   },
   successOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
     padding: Spacing.xl,
   },
   successCard: {
     backgroundColor: Colors.white,
     borderRadius: Radii.xl,
     padding: Spacing.xxl,
-    alignItems: 'center',
+    alignItems: "center",
     gap: Spacing.sm,
-    width: '100%',
+    width: "100%",
     maxWidth: 320,
   },
   successIcon: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: Spacing.sm,
   },
   successTitle: {
@@ -459,6 +522,6 @@ const styles = StyleSheet.create({
   successSubtitle: {
     fontSize: Typography.sizes.sm,
     color: Colors.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

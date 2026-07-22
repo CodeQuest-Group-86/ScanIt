@@ -11,10 +11,10 @@
  * touches the Paystack *public* key, which is safe to ship in the app.
  */
 
-import type { ApiResponse } from '@/types';
-import { api } from '@/utils/api';
+import type { ApiResponse } from "@/types";
+import { api } from "@/utils/api";
 
-const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '';
+const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ?? "";
 
 export interface VerifyPaymentResponse {
   isActive: boolean;
@@ -26,7 +26,7 @@ export interface SubscriptionPlan {
   id: string;
   name: string;
   amount: number; // in GHS
-  interval: 'monthly' | 'yearly';
+  interval: "monthly" | "yearly";
   features: string[];
   scanLimit: number;
 }
@@ -34,35 +34,29 @@ export interface SubscriptionPlan {
 /** Must stay in sync with PaymentService.PLANS on the backend (amount in GHS there is pesewas / 100). */
 export const PAYSTACK_PLANS: SubscriptionPlan[] = [
   {
-    id: 'premium_monthly',
-    name: 'Premium Monthly',
+    id: "premium_monthly",
+    name: "Premium Monthly",
     amount: 15, // GHS 15 per month
-    interval: 'monthly',
-    features: [
-      'Unlimited scans',
-      'Priority AI processing',
-      'Advanced authenticity detection',
-      'Price history tracking',
-      'No ads'
-    ],
-    scanLimit: -1 // unlimited
+    interval: "monthly",
+    features: ["25 scans", "Priority AI processing"],
+    scanLimit: 25,
   },
   {
-    id: 'premium_yearly',
-    name: 'Premium Yearly',
+    id: "premium_yearly",
+    name: "Premium Yearly",
     amount: 150, // GHS 150 per year (save 17%)
-    interval: 'yearly',
+    interval: "yearly",
     features: [
-      'Unlimited scans',
-      'Priority AI processing',
-      'Advanced authenticity detection',
-      'Price history tracking',
-      'No ads',
-      'Exclusive seller insights',
-      'Early access to new features'
+      "80 scans",
+      "Priority AI processing",
+      "Advanced authenticity detection",
+      "Price history tracking",
+      "No ads",
+      "Exclusive seller insights",
+      "Early access to new features",
     ],
-    scanLimit: -1 // unlimited
-  }
+    scanLimit: -1, // unlimited
+  },
 ];
 
 export const paymentService = {
@@ -85,12 +79,22 @@ export const paymentService = {
    * the transaction with Paystack directly (using the secret key) before
    * activating the subscription — the client's "success" callback is never trusted alone.
    */
-  async verifyPayment(reference: string, planId: string): Promise<ApiResponse<VerifyPaymentResponse>> {
+  async verifyPayment(
+    reference: string,
+    planId: string,
+  ): Promise<ApiResponse<VerifyPaymentResponse>> {
     try {
-      const data = await api.post<VerifyPaymentResponse>('/payments/verify', { reference, planId });
+      const data = await api.post<VerifyPaymentResponse>("/payments/verify", {
+        reference,
+        planId,
+      });
       return { success: true, data };
     } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to verify payment', data: null as never };
+      return {
+        success: false,
+        message: e.message ?? "Failed to verify payment",
+        data: null as never,
+      };
     }
   },
 
@@ -104,13 +108,30 @@ export const paymentService = {
   /**
    * Get current subscription status
    */
-  async getSubscriptionStatus(): Promise<ApiResponse<{ isActive: boolean; plan?: SubscriptionPlan; endDate?: string }>> {
+  async getSubscriptionStatus(): Promise<
+    ApiResponse<{
+      isActive: boolean;
+      plan?: SubscriptionPlan;
+      endDate?: string;
+    }>
+  > {
     try {
-      const data = await api.get<{ isActive: boolean; plan?: string; expiresAt?: string }>('/payments/subscription');
-      const plan = PAYSTACK_PLANS.find(p => p.id === data.plan);
-      return { success: true, data: { isActive: data.isActive, plan, endDate: data.expiresAt } };
+      const data = await api.get<{
+        isActive: boolean;
+        plan?: string;
+        expiresAt?: string;
+      }>("/payments/subscription");
+      const plan = PAYSTACK_PLANS.find((p) => p.id === data.plan);
+      return {
+        success: true,
+        data: { isActive: data.isActive, plan, endDate: data.expiresAt },
+      };
     } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to fetch subscription status', data: null as never };
+      return {
+        success: false,
+        message: e.message ?? "Failed to fetch subscription status",
+        data: null as never,
+      };
     }
   },
 
@@ -119,10 +140,14 @@ export const paymentService = {
    */
   async cancelSubscription(): Promise<ApiResponse<null>> {
     try {
-      await api.post('/payments/cancel-subscription');
+      await api.post("/payments/cancel-subscription");
       return { success: true, data: null };
     } catch (e: any) {
-      return { success: false, message: e.message ?? 'Failed to cancel subscription', data: null };
+      return {
+        success: false,
+        message: e.message ?? "Failed to cancel subscription",
+        data: null,
+      };
     }
-  }
+  },
 };

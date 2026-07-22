@@ -79,7 +79,7 @@ export default function ProfileScreen() {
     {
       icon: "card-outline",
       label: "Subscription",
-      onPress: () => router.push("/subscribe.tsx"),
+      onPress: () => router.push("/subscribe"),
     },
   ];
 

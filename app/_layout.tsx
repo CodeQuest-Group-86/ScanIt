@@ -25,7 +25,12 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <PaystackProvider publicKey={paymentService.getPublicKey()} currency="GHS" debug={__DEV__}>
+      <PaystackProvider
+        publicKey={paymentService.getPublicKey()}
+        currency="GHS"
+        defaultChannels={['card', 'mobile_money']}
+        debug={__DEV__}
+      >
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(onboarding)" />

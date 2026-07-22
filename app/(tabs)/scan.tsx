@@ -590,6 +590,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.white,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 70,
   },
   shutterDisabled: { opacity: 0.4 },
   shutterInner: {

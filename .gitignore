@@ -48,3 +48,4 @@ yarn-error.*
 backend/target/
 backend/run-local.ps1
 backend/src/main/resources/application-local.yml
+backend/data/
