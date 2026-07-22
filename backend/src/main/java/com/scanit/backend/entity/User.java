@@ -73,6 +73,10 @@ public class User implements UserDetails {
     private String otpPurpose;
     private String phoneNumber;
 
+    /** Expo push token — set via POST /users/push-token once the app has notification
+     *  permission. Null means the device isn't registered for push. */
+    private String pushToken;
+
     // ── Subscription fields ──────────────────────────────────────────────────
 
     /** "premium_monthly" or "premium_yearly" — null when never subscribed. */

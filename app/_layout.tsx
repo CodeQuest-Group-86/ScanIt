@@ -7,10 +7,12 @@ import { useAuthStore } from '@/stores/auth';
 import { useSavedStore } from '@/stores/saved';
 import { useScanStore } from '@/stores/scan';
 import { paymentService } from '@/services/payment';
+import { registerForPushNotifications } from '@/services/notifications';
 import { warmUpBackend } from '@/utils/api';
 
 export default function RootLayout() {
   const initialize = useAuthStore(s => s.initialize);
+  const user = useAuthStore(s => s.user);
   const loadSaved = useSavedStore(s => s.load);
   const initQuota = useScanStore(s => s.initQuota);
 
@@ -22,6 +24,11 @@ export default function RootLayout() {
     loadSaved();
     initQuota();
   }, []);
+
+  useEffect(() => {
+    // Requires a signed-in user — the backend endpoint needs a JWT.
+    if (user) registerForPushNotifications();
+  }, [user]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

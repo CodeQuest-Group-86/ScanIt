@@ -64,7 +64,13 @@
           "photosPermission": "ScanIt needs photo library access to pick product images."
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#E76F2E"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

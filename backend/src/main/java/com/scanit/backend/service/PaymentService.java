@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scanit.backend.dto.payment.SubscriptionStatusDto;
 import com.scanit.backend.dto.payment.VerifyPaymentRequest;
 import com.scanit.backend.entity.User;
+import com.scanit.backend.enums.NotificationType;
 import com.scanit.backend.exception.BadRequestException;
 import com.scanit.backend.exception.ResourceNotFoundException;
 import com.scanit.backend.repository.UserRepository;
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 public class PaymentService {
 
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Value("${paystack.secret-key:}") private String paystackSecretKey;
 
@@ -101,6 +103,13 @@ public class PaymentService {
         user.setLastPaymentReference(req.getReference());
         user.setQuotaScansUsed(0);
         userRepository.save(user);
+
+        notificationService.notify(
+                user,
+                "Welcome to Premium!",
+                "Your " + req.getPlanId().replace("_", " ") + " subscription is active. Enjoy your scans!",
+                NotificationType.SYSTEM
+        );
 
         log.info("Subscription activated for {} — plan={} reference={}", userEmail, req.getPlanId(), req.getReference());
         return toDto(user);

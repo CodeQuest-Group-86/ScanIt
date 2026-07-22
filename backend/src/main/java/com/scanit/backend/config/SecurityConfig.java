@@ -1,7 +1,9 @@
 package com.scanit.backend.config;
 
 import com.scanit.backend.security.JwtAuthFilter;
+import com.scanit.backend.security.RateLimitFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -31,7 +33,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final UserDetailsService userDetailsService;
+
+    @Value("${spring.h2.console.enabled:false}")
+    private boolean h2ConsoleEnabled;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -58,8 +64,14 @@ public class SecurityConfig {
                 )
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                // Allow H2 iframe in dev
-                .headers(headers -> headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable));
+                .addFilterBefore(rateLimitFilter, JwtAuthFilter.class)
+                // Frame options only need relaxing for the H2 console iframe in dev —
+                // clickjacking protection (DENY) stays on everywhere else, including prod.
+                .headers(headers -> {
+                    if (h2ConsoleEnabled) {
+                        headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable);
+                    }
+                });
 
         return http.build();
     }
