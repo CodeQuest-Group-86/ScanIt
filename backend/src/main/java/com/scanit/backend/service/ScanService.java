@@ -41,6 +41,7 @@ public class ScanService {
     private final ProductService productService;
     private final GeminiService geminiService;
     private final DuckDuckGoService duckDuckGoService;
+    private final CompuGhanaService compuGhanaService;
 
     /** Must stay in sync with PAYSTACK_PLANS in services/payment.ts. -1 = unlimited. */
     private static final int FREE_SCAN_LIMIT = 3;
@@ -107,6 +108,39 @@ public class ScanService {
             }
         } catch (Exception e) {
             log.warn("DuckDuckGo product search failed, returning basic data: {}", e.getMessage());
+        }
+
+        // Step 2.5: CompuGhana — a real live price, not a search-snippet guess. Replaces
+        // the generic CompuGhana entry DuckDuckGoService adds for every product.
+        try {
+            List<CompuGhanaService.Listing> compuGhanaResults = compuGhanaService.search(gemini.name());
+            if (!compuGhanaResults.isEmpty()) {
+                CompuGhanaService.Listing best = compuGhanaResults.get(0);
+                GeminiService.ResearchSeller realSeller = new GeminiService.ResearchSeller(
+                    "CompuGhana", best.url(), "Online · Electronics", best.price()
+                );
+                List<GeminiService.ResearchSeller> existing = research != null && research.sellers() != null
+                        ? research.sellers() : List.of();
+                List<GeminiService.ResearchSeller> merged = new ArrayList<>();
+                for (GeminiService.ResearchSeller s : existing) {
+                    if (!"compughana".equalsIgnoreCase(s.name().replace(" ", ""))) {
+                        merged.add(s);
+                    }
+                }
+                merged.add(realSeller);
+
+                double priceTypical = research != null && research.priceTypical() > 0
+                        ? research.priceTypical() : best.price();
+                research = new GeminiService.ProductResearch(
+                        research != null ? research.specs() : Map.of(),
+                        research != null ? research.priceMin() : 0,
+                        research != null ? research.priceMax() : 0,
+                        priceTypical,
+                        merged
+                );
+            }
+        } catch (Exception e) {
+            log.warn("CompuGhana enrichment failed: {}", e.getMessage());
         }
 
         // Persist updated specs/price to the product record
