@@ -9,6 +9,7 @@ import com.scanit.backend.entity.Product;
 import com.scanit.backend.entity.ScanResult;
 import com.scanit.backend.entity.User;
 import com.scanit.backend.exception.ResourceNotFoundException;
+import com.scanit.backend.exception.ScanQuotaExceededException;
 import com.scanit.backend.repository.ProductRepository;
 import com.scanit.backend.repository.ScanResultRepository;
 import com.scanit.backend.repository.UserRepository;
@@ -41,11 +42,34 @@ public class ScanService {
     private final GeminiService geminiService;
     private final DuckDuckGoService duckDuckGoService;
 
+    /** Must stay in sync with PAYSTACK_PLANS in services/payment.ts. -1 = unlimited. */
+    private static final int FREE_SCAN_LIMIT = 3;
+    private static final java.util.Map<String, Integer> PLAN_SCAN_LIMITS = java.util.Map.of(
+        "premium_monthly", 25,
+        "premium_yearly", -1
+    );
+
+    /** Server-side quota check — the client also tracks this locally, but that's trivially
+     *  bypassed by clearing app storage, so this is the authoritative gate. */
+    private void enforceQuota(User user) {
+        int limit = FREE_SCAN_LIMIT;
+        if (user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null
+                && Instant.now().isBefore(user.getSubscriptionExpiresAt())) {
+            limit = PLAN_SCAN_LIMITS.getOrDefault(user.getSubscriptionPlan(), FREE_SCAN_LIMIT);
+        }
+        if (limit != -1 && user.getQuotaScansUsed() >= limit) {
+            throw new ScanQuotaExceededException(
+                "You've used all " + limit + " scans for this period. Upgrade or wait for renewal to keep scanning."
+            );
+        }
+    }
+
     // ── Analyze image ─────────────────────────────────────────────────────────
 
     @Transactional
     public ScanResultDto analyzeImage(String userEmail, byte[] imageBytes, String mimeType) {
         User user = findUser(userEmail);
+        enforceQuota(user);
 
         // Step 1: Vision — identify the product
         GeminiService.ProductInfo gemini = geminiService.identifyProduct(imageBytes, mimeType);
@@ -114,6 +138,7 @@ public class ScanService {
         );
 
         user.setScansCount(user.getScansCount() + 1);
+        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
         userRepository.save(user);
 
         log.debug("Scan complete — user={} product={} confidence={}", userEmail, matched.getName(), confidence);
@@ -125,6 +150,7 @@ public class ScanService {
     @Transactional
     public ScanResultDto findByBarcode(String userEmail, String barcode) {
         User user = findUser(userEmail);
+        enforceQuota(user);
 
         // 1. Check local DB first
         List<Product> products = productRepository.findByBarcode(barcode);
@@ -170,6 +196,7 @@ public class ScanService {
                             .build()
             );
             user.setScansCount(user.getScansCount() + 1);
+        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
             userRepository.save(user);
             log.debug("Barcode via OFF — user={} barcode={} product={}", userEmail, barcode, product.getName());
             return toDto(saved, research, ddgSearch);
@@ -186,6 +213,7 @@ public class ScanService {
         );
 
         user.setScansCount(user.getScansCount() + 1);
+        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
         userRepository.save(user);
 
         log.debug("Barcode scan — user={} barcode={} product={}", userEmail, barcode, product.getName());

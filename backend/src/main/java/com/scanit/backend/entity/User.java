@@ -44,6 +44,12 @@ public class User implements UserDetails {
     @Builder.Default
     private int scansCount = 0;
 
+    /** Scans used in the current free/paid quota period — resets when a new subscription
+     *  activates. Distinct from scansCount, which is a lifetime stat shown on the profile. */
+    @Column(nullable = false)
+    @Builder.Default
+    private int quotaScansUsed = 0;
+
     @Column(nullable = false)
     @Builder.Default
     private int savedCount = 0;

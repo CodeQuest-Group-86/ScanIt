@@ -99,6 +99,7 @@ public class PaymentService {
         user.setSubscriptionPlan(req.getPlanId());
         user.setSubscriptionExpiresAt(Instant.now().plus(plan.durationDays(), ChronoUnit.DAYS));
         user.setLastPaymentReference(req.getReference());
+        user.setQuotaScansUsed(0);
         userRepository.save(user);
 
         log.info("Subscription activated for {} — plan={} reference={}", userEmail, req.getPlanId(), req.getReference());
