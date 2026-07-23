@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const FAQ = [
   {
     q: "How does ScanIt identify products?",
-    a: "ScanIt uses advanced AI vision technology to analyze product images and match them against our database of products. No barcode or QR code is needed — just point your camera.",
+    a: "ScanIt uses advanced AI vision technology to analyze product images and match them against our database of products. No barcode or QR code is needed, just point your camera.",
   },
   {
     q: "How accurate is the authenticity check?",
@@ -27,11 +27,11 @@ const FAQ = [
   },
   {
     q: "What is the scan session limit?",
-    a: "Each app session allows up to 3 scans. Restarting the app resets your session counter.",
+    a: "Each app session allows up to 10 scans. Restarting the app resets your session counter.",
   },
   {
     q: "How do I become a verified seller?",
-    a: "Contact our support team to start the verification process. Verified sellers gain a badge and higher visibility in search results.",
+    a: "Contact our support team to start the verification process. Verified sellers gain a badge and higher visibility in search results. Thus it's in version 2.4 ~expected date is 2037",
   },
 ];
 

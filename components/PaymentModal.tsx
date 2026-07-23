@@ -54,6 +54,7 @@ export default function PaymentModal({
    * the backend re-verifies the transaction with Paystack's secret key before we
    * actually activate the subscription, so a tampered client can't grant itself premium.
    */
+
   const handleSubscribe = () => {
     if (!user?.email) {
       Alert.alert("Error", "Please sign in to subscribe");
