@@ -9,6 +9,7 @@ import { buildProductGoogleUrl } from '@/utils/links';
 import { formatPrice } from '@/utils/format';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import {
@@ -19,6 +20,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import ReanimatedView, { FadeInUp } from 'react-native-reanimated';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
@@ -29,7 +31,7 @@ async function openExternal(url: string) {
 }
 
 export default function ScanResultScreen() {
-  const { currentResult, clearResult, offlineMode } = useScanStore();
+  const { currentResult, clearResult, offlineMode, isPremium } = useScanStore();
   const { loadRecommendations, selectProduct } = useProductsStore();
   const { save, remove, isSaved } = useSavedStore();
 
@@ -73,6 +75,8 @@ export default function ScanResultScreen() {
     router.push('/recommendations');
   };
 
+  const handleUpgrade = () => router.push('/subscribe');
+
   return (
     <View style={StyleSheet.absoluteFill}>
       <Animated.View style={[styles.overlay, { opacity: bgAnim }]} pointerEvents="auto">
@@ -99,7 +103,7 @@ export default function ScanResultScreen() {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
 
           {/* Product image + identity */}
-          <View style={styles.productRow}>
+          <ReanimatedView.View entering={FadeInUp.duration(400)} style={styles.productRow}>
             <Image
               source={{ uri: product.imageUrl || currentResult.imageUri || `https://placehold.co/100x100/E76F2E/FFFFFF/png?text=${encodeURIComponent(product.name[0])}` }}
               style={styles.productImage}
@@ -110,7 +114,14 @@ export default function ScanResultScreen() {
               <Text style={styles.productName}>{product.name}</Text>
               <Text style={styles.category}>{product.category}</Text>
               <View style={styles.statusRow}>
-                <AuthenticityBadge status={authenticityStatus} />
+                {isPremium ? (
+                  <AuthenticityBadge status={authenticityStatus} />
+                ) : (
+                  <TouchableOpacity style={styles.lockedBadge} onPress={handleUpgrade} activeOpacity={0.8}>
+                    <Ionicons name="lock-closed" size={11} color={Colors.textSecondary} />
+                    <Text style={styles.lockedBadgeText}>Authenticity check</Text>
+                  </TouchableOpacity>
+                )}
                 {product.verified && (
                   <View style={styles.verifiedChip}>
                     <Ionicons name="checkmark-circle" size={12} color={Colors.success} />
@@ -119,15 +130,17 @@ export default function ScanResultScreen() {
                 )}
               </View>
             </View>
-          </View>
+          </ReanimatedView.View>
 
           {/* Description */}
           {product.description ? (
-            <Text style={styles.description}>{product.description}</Text>
+            <ReanimatedView.Text entering={FadeInUp.duration(400).delay(60)} style={styles.description}>
+              {product.description}
+            </ReanimatedView.Text>
           ) : null}
 
           {/* Search externally — opens device browser outside the app */}
-          <View style={styles.searchRow}>
+          <ReanimatedView.View entering={FadeInUp.duration(400).delay(100)} style={styles.searchRow}>
             <TouchableOpacity
               style={[styles.searchBtn, styles.googleBtn]}
               onPress={() => openExternal(googleUrl)}
@@ -148,51 +161,75 @@ export default function ScanResultScreen() {
                 <Ionicons name="open-outline" size={14} color={Colors.white + 'CC'} />
               </TouchableOpacity>
             ) : null}
-          </View>
+          </ReanimatedView.View>
+
+          {/* Authenticity — premium feature */}
+          {isPremium ? (
+            authenticityStatus !== 'authentic' && (
+              <ReanimatedView.View entering={FadeInUp.duration(400).delay(140)}
+                style={[styles.warningBox, authenticityStatus === 'counterfeit' && styles.dangerBox]}>
+                <Ionicons name="warning-outline" size={18} color={authenticityStatus === 'counterfeit' ? Colors.danger : Colors.warning} />
+                <Text style={[styles.warningText, authenticityStatus === 'counterfeit' && styles.dangerText]}>
+                  {authenticityStatus === 'counterfeit'
+                    ? 'This product may be counterfeit. Do not purchase.'
+                    : 'Authenticity uncertain. Verify before buying.'}
+                </Text>
+              </ReanimatedView.View>
+            )
+          ) : (
+            <ReanimatedView.View entering={FadeInUp.duration(400).delay(140)}>
+              <TouchableOpacity onPress={handleUpgrade} activeOpacity={0.9}>
+                <LinearGradient
+                  colors={Colors.gradientPrimary as any}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={styles.upsellBox}
+                >
+                  <View style={styles.upsellIconWrap}>
+                    <Ionicons name="shield-checkmark" size={20} color={Colors.white} />
+                  </View>
+                  <View style={styles.upsellTextWrap}>
+                    <Text style={styles.upsellTitle}>Is this the real thing?</Text>
+                    <Text style={styles.upsellSubtitle}>Unlock authenticity verification with Premium</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </ReanimatedView.View>
+          )}
 
           {/* Offline notice */}
           {offlineMode && (
             <View style={styles.offlineBox}>
               <Ionicons name="sparkles-outline" size={16} color={Colors.accent} />
               <Text style={styles.offlineText}>
-                Identified with Gemini Vision · Sellers from DuckDuckGo search. Tap any store to open Google in your browser.
-              </Text>
-            </View>
-          )}
-
-          {/* Authenticity warning */}
-          {authenticityStatus !== 'authentic' && (
-            <View style={[styles.warningBox, authenticityStatus === 'counterfeit' && styles.dangerBox]}>
-              <Ionicons name="warning-outline" size={18} color={authenticityStatus === 'counterfeit' ? Colors.danger : Colors.warning} />
-              <Text style={[styles.warningText, authenticityStatus === 'counterfeit' && styles.dangerText]}>
-                {authenticityStatus === 'counterfeit'
-                  ? 'This product may be counterfeit. Do not purchase.'
-                  : 'Authenticity uncertain. Verify before buying.'}
+                Identified on-device · Tap any store below to compare prices.
               </Text>
             </View>
           )}
 
           {/* Price comparison */}
           {(currentPrice > 0 || bestPrice > 0) && (
-            <GlassCard padded={false} intensity={40} style={styles.priceCard}>
-              <View style={styles.priceCardInner}>
-                <View style={styles.priceItem}>
-                  <Text style={styles.priceLabel}>Current Price</Text>
-                  <Text style={styles.currentPrice}>{formatPrice(currentPrice, product.currency)}</Text>
+            <ReanimatedView.View entering={FadeInUp.duration(400).delay(180)}>
+              <GlassCard padded={false} intensity={40} style={styles.priceCard}>
+                <View style={styles.priceCardInner}>
+                  <View style={styles.priceItem}>
+                    <Text style={styles.priceLabel}>Current Price</Text>
+                    <Text style={styles.currentPrice}>{formatPrice(currentPrice, product.currency)}</Text>
+                  </View>
+                  <View style={styles.priceDivider} />
+                  <View style={styles.priceItem}>
+                    <Text style={styles.priceLabel}>Best Nearby</Text>
+                    <Text style={styles.bestPrice}>{formatPrice(bestPrice, product.currency)}</Text>
+                    {savings > 0 && <Text style={styles.savingsText}>Save {formatPrice(savings)}</Text>}
+                  </View>
                 </View>
-                <View style={styles.priceDivider} />
-                <View style={styles.priceItem}>
-                  <Text style={styles.priceLabel}>Best Nearby</Text>
-                  <Text style={styles.bestPrice}>{formatPrice(bestPrice, product.currency)}</Text>
-                  {savings > 0 && <Text style={styles.savingsText}>Save {formatPrice(savings)}</Text>}
-                </View>
-              </View>
-            </GlassCard>
+              </GlassCard>
+            </ReanimatedView.View>
           )}
 
           {/* Specs */}
           {Object.keys(product.specs).length > 0 && (
-            <View style={styles.section}>
+            <ReanimatedView.View entering={FadeInUp.duration(400).delay(220)} style={styles.section}>
               <Text style={styles.sectionTitle}>Specifications</Text>
               <GlassCard padded={false} intensity={30} style={styles.specsCard}>
                 {Object.entries(product.specs).map(([key, val], i, arr) => (
@@ -202,16 +239,16 @@ export default function ScanResultScreen() {
                   </View>
                 ))}
               </GlassCard>
-            </View>
+            </ReanimatedView.View>
           )}
 
           {/* Where to buy — sellers */}
           {product.sellers.length > 0 ? (
-            <View style={styles.section}>
+            <ReanimatedView.View entering={FadeInUp.duration(400).delay(260)} style={styles.section}>
               <Text style={styles.sectionTitle}>Where to Buy</Text>
               <Text style={styles.sectionHint}>Opens Google Search in your browser</Text>
               {product.sellers.map(s => <SellerRow key={s.id} seller={s} currency={product.currency} />)}
-            </View>
+            </ReanimatedView.View>
           ) : !offlineMode && (
             <View style={styles.noSellersBox}>
               <Ionicons name="storefront-outline" size={20} color={Colors.textSecondary} />
@@ -349,6 +386,13 @@ const styles = StyleSheet.create({
   dangerBox: { backgroundColor: Colors.danger + '15', borderLeftColor: Colors.danger },
   warningText: { flex: 1, fontSize: Typography.sizes.sm, color: Colors.warning, lineHeight: 20 },
   dangerText: { color: Colors.danger },
+  lockedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.border, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
+  lockedBadgeText: { fontSize: Typography.sizes.xs, fontWeight: Typography.weights.semibold, color: Colors.textSecondary },
+  upsellBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radii.md, padding: Spacing.md, ...Shadows.sm },
+  upsellIconWrap: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' },
+  upsellTextWrap: { flex: 1, gap: 1 },
+  upsellTitle: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.white },
+  upsellSubtitle: { fontSize: Typography.sizes.xs, color: Colors.white + 'DD' },
   priceCard: { borderRadius: Radii.card },
   priceCardInner: { flexDirection: 'row', padding: Spacing.lg },
   priceItem: { flex: 1, alignItems: 'center', gap: 2 },

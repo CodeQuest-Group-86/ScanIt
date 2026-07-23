@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useProductsStore } from "@/stores/products";
 import { Colors, Radii, Shadows, Spacing, Typography } from "@/theme";
 import type { InventoryItem } from "@/types";
-import { formatPrice, getInitials } from "@/utils/format";
+import { getInitials } from "@/utils/format";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -169,13 +169,6 @@ export default function ProfileScreen() {
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{user.savedCount}</Text>
               <Text style={styles.statLabel}>Saved</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {formatPrice(user.totalSaved)}
-              </Text>
-              <Text style={styles.statLabel}>Total saved</Text>
             </View>
           </View>
         )}

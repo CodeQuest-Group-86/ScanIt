@@ -6,13 +6,18 @@ import { create } from 'zustand';
 const MAX_HISTORY = 50;
 const HISTORY_KEY = 'scanit_scan_history';
 const QUOTA_KEY = 'scanit_scan_quota';
-const FREE_SCANS_LIFETIME = 3; // 3 free lifetime scans before payment required
+const FREE_SCANS_PER_DAY = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ── Quota helpers ──────────────────────────────────────────────────────────
+// This is just a fast local check for UX — the backend enforces the real limit
+// server-side (ScanService.enforceQuota), since this is trivially bypassed by
+// clearing app storage.
 
 interface QuotaRecord {
   totalScans: number;
   isPremium: boolean;
+  periodStart: number; // epoch ms — start of the current free-tier daily window
 }
 
 async function loadQuota(): Promise<QuotaRecord> {
@@ -20,10 +25,13 @@ async function loadQuota(): Promise<QuotaRecord> {
     const raw = await AsyncStorage.getItem(QUOTA_KEY);
     if (raw) {
       const q: QuotaRecord = JSON.parse(raw);
+      if (Date.now() - (q.periodStart ?? 0) > DAY_MS) {
+        return { totalScans: 0, isPremium: q.isPremium, periodStart: Date.now() };
+      }
       return q;
     }
   } catch { /* ignore */ }
-  return { totalScans: 0, isPremium: false };
+  return { totalScans: 0, isPremium: false, periodStart: Date.now() };
 }
 
 async function saveQuota(q: QuotaRecord): Promise<void> {
@@ -44,7 +52,8 @@ interface ScanState {
 
   // quota
   totalScansUsed: number;
-  lifetimeScansLimit: number;
+  dailyScansLimit: number;
+  quotaPeriodStart: number;
   isPremium: boolean;
   showPaywall: boolean;
   historyLoaded: boolean;
@@ -72,7 +81,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   aiAnalysis: null,
   offlineMode: false,
   totalScansUsed: 0,
-  lifetimeScansLimit: FREE_SCANS_LIFETIME,
+  dailyScansLimit: FREE_SCANS_PER_DAY,
+  quotaPeriodStart: 0,
   isPremium: false,
   showPaywall: false,
   historyLoaded: false,
@@ -81,7 +91,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   initQuota: async () => {
     const q = await loadQuota();
-    set({ totalScansUsed: q.totalScans, isPremium: q.isPremium });
+    set({ totalScansUsed: q.totalScans, isPremium: q.isPremium, quotaPeriodStart: q.periodStart });
+    await saveQuota(q); // persist the day-rollover reset if loadQuota() just applied one
 
     // Restore history from AsyncStorage
     try {
@@ -100,19 +111,19 @@ export const useScanStore = create<ScanState>((set, get) => ({
   // ── Camera / gallery scan ────────────────────────────────────────────────
 
   analyze: async (imageUri) => {
-    const { totalScansUsed, lifetimeScansLimit, isPremium } = get();
-    if (!isPremium && totalScansUsed >= lifetimeScansLimit) {
+    const { totalScansUsed, dailyScansLimit, quotaPeriodStart, isPremium } = get();
+    if (!isPremium && totalScansUsed >= dailyScansLimit) {
       set({ showPaywall: true });
       return;
     }
 
     set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false,
-          analyzingStage: 'Gemini Vision: identifying product…' });
+          analyzingStage: 'Analyzing your photo…' });
 
     try {
-      // Stage updates for UX (scan service runs Gemini + DuckDuckGo)
+      // Stage updates for UX (scan service runs product ID + price lookup)
       const stageTimer = setTimeout(() => {
-        set({ analyzingStage: 'DuckDuckGo: finding where to buy…' });
+        set({ analyzingStage: 'Finding the best prices…' });
       }, 2500);
 
       const res = await scanService.analyzeImage(imageUri);
@@ -135,7 +146,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
       const newHistory = [res.data!, ...get().history].slice(0, MAX_HISTORY);
       const newUsed = totalScansUsed + 1;
-      const quota: QuotaRecord = { totalScans: newUsed, isPremium };
+      const quota: QuotaRecord = { totalScans: newUsed, isPremium, periodStart: quotaPeriodStart };
       await saveQuota(quota);
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
 
@@ -157,8 +168,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   // ── Barcode scan ─────────────────────────────────────────────────────────
 
   analyzeBarcode: async (code) => {
-    const { totalScansUsed, lifetimeScansLimit, isPremium } = get();
-    if (!isPremium && totalScansUsed >= lifetimeScansLimit) {
+    const { totalScansUsed, dailyScansLimit, quotaPeriodStart, isPremium } = get();
+    if (!isPremium && totalScansUsed >= dailyScansLimit) {
       set({ showPaywall: true });
       return;
     }
@@ -178,7 +189,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
       const newHistory = [res.data, ...get().history].slice(0, MAX_HISTORY);
       const newUsed = totalScansUsed + 1;
-      const quota: QuotaRecord = { totalScans: newUsed, isPremium };
+      const quota: QuotaRecord = { totalScans: newUsed, isPremium, periodStart: quotaPeriodStart };
       await saveQuota(quota);
       await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(newHistory));
 
@@ -214,8 +225,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   dismissPaywall: () => set({ showPaywall: false }),
 
   setPremium: async (isPremium: boolean) => {
-    const { totalScansUsed } = get();
-    const quota: QuotaRecord = { totalScans: totalScansUsed, isPremium };
+    const { totalScansUsed, quotaPeriodStart } = get();
+    const quota: QuotaRecord = { totalScans: totalScansUsed, isPremium, periodStart: quotaPeriodStart };
     await saveQuota(quota);
     set({ isPremium, showPaywall: false });
   },

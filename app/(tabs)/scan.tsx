@@ -51,7 +51,7 @@ export default function ScanScreen() {
     error,
     offlineMode,
     totalScansUsed,
-    lifetimeScansLimit,
+    dailyScansLimit,
     isPremium,
   } = useScanStore();
 
@@ -173,7 +173,7 @@ export default function ScanScreen() {
     outputRange: [0, 200],
   });
 
-  const scansLeft = Math.max(0, lifetimeScansLimit - totalScansUsed);
+  const scansLeft = Math.max(0, dailyScansLimit - totalScansUsed);
 
   return (
     <View style={styles.container}>
@@ -298,7 +298,7 @@ export default function ScanScreen() {
         <View style={styles.offlineBanner} pointerEvents="none">
           <Ionicons name="sparkles-outline" size={16} color={Colors.accent} />
           <Text style={styles.offlineText}>
-            Gemini Vision + DuckDuckGo · Tap sellers to open Google in your
+            Identified on-device · Tap sellers to open Google in your
             browser.
           </Text>
         </View>

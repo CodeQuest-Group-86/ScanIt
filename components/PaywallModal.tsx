@@ -12,7 +12,7 @@ import {
 import PaymentModal from './PaymentModal';
 
 const PERKS = [
-  { icon: 'infinite-outline', text: 'Unlimited lifetime scans' },
+  { icon: 'infinite-outline', text: 'Way more scans — 25/month or unlimited on yearly' },
   { icon: 'flash-outline', text: 'Priority AI processing' },
   { icon: 'storefront-outline', text: 'Live seller prices & locations' },
   { icon: 'bookmark-outline', text: 'Unlimited saved products' },
@@ -20,7 +20,7 @@ const PERKS = [
 ];
 
 export default function PaywallModal() {
-  const { showPaywall, dismissPaywall, totalScansUsed, lifetimeScansLimit, setPremium } = useScanStore();
+  const { showPaywall, dismissPaywall, totalScansUsed, dailyScansLimit, setPremium } = useScanStore();
   const [showPaymentModal, setShowPaymentModal] = React.useState(false);
 
   if (!showPaywall) return null;
@@ -60,9 +60,9 @@ export default function PaywallModal() {
               <View style={styles.iconWrap}>
                 <Ionicons name="scan-outline" size={32} color={Colors.white} />
               </View>
-              <Text style={styles.title}>{'You'}{'\u2019'}ve used all{'\n'}free scans</Text>
+              <Text style={styles.title}>{'You'}{'\u2019'}ve used today{'’'}s{'\n'}free scans</Text>
               <Text style={styles.subtitle}>
-                {totalScansUsed}/{lifetimeScansLimit} free scans used · Upgrade for unlimited
+                {totalScansUsed}/{dailyScansLimit} free scans used today · Upgrade for more
               </Text>
             </View>
 

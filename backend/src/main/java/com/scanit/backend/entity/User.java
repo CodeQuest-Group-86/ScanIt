@@ -44,11 +44,15 @@ public class User implements UserDetails {
     @Builder.Default
     private int scansCount = 0;
 
-    /** Scans used in the current free/paid quota period — resets when a new subscription
+    /** Scans used in the current free/paid quota period. For free-tier users this resets
+     *  every 24h (see quotaPeriodStart); for a paid plan it resets when a new subscription
      *  activates. Distinct from scansCount, which is a lifetime stat shown on the profile. */
     @Column(nullable = false)
     @Builder.Default
     private int quotaScansUsed = 0;
+
+    /** Start of the current free-tier daily quota window. Null until the first scan. */
+    private Instant quotaPeriodStart;
 
     @Column(nullable = false)
     @Builder.Default

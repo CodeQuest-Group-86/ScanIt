@@ -43,8 +43,10 @@ public class ScanService {
     private final DuckDuckGoService duckDuckGoService;
     private final CompuGhanaService compuGhanaService;
 
-    /** Must stay in sync with PAYSTACK_PLANS in services/payment.ts. -1 = unlimited. */
-    private static final int FREE_SCAN_LIMIT = 3;
+    /** Free tier resets daily. Paid plan limits must stay in sync with PAYSTACK_PLANS in
+     *  services/payment.ts and reset when a new subscription activates, not daily.
+     *  -1 = unlimited. */
+    private static final int FREE_SCAN_LIMIT = 10;
     private static final java.util.Map<String, Integer> PLAN_SCAN_LIMITS = java.util.Map.of(
         "premium_monthly", 25,
         "premium_yearly", -1
@@ -53,15 +55,28 @@ public class ScanService {
     /** Server-side quota check — the client also tracks this locally, but that's trivially
      *  bypassed by clearing app storage, so this is the authoritative gate. */
     private void enforceQuota(User user) {
-        int limit = FREE_SCAN_LIMIT;
-        if (user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null
-                && Instant.now().isBefore(user.getSubscriptionExpiresAt())) {
+        boolean onPaidPlan = user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null
+                && Instant.now().isBefore(user.getSubscriptionExpiresAt());
+
+        int limit;
+        if (onPaidPlan) {
             limit = PLAN_SCAN_LIMITS.getOrDefault(user.getSubscriptionPlan(), FREE_SCAN_LIMIT);
+        } else {
+            limit = FREE_SCAN_LIMIT;
+            // Free tier resets every 24h from the start of the current window, not lifetime.
+            Instant now = Instant.now();
+            if (user.getQuotaPeriodStart() == null
+                    || now.isAfter(user.getQuotaPeriodStart().plus(1, java.time.temporal.ChronoUnit.DAYS))) {
+                user.setQuotaPeriodStart(now);
+                user.setQuotaScansUsed(0);
+            }
         }
+
         if (limit != -1 && user.getQuotaScansUsed() >= limit) {
-            throw new ScanQuotaExceededException(
-                "You've used all " + limit + " scans for this period. Upgrade or wait for renewal to keep scanning."
-            );
+            String message = onPaidPlan
+                ? "You've used all " + limit + " scans for this period. Upgrade or wait for renewal to keep scanning."
+                : "You've used all " + limit + " free scans for today. Come back tomorrow or upgrade to Premium for more.";
+            throw new ScanQuotaExceededException(message);
         }
     }
 

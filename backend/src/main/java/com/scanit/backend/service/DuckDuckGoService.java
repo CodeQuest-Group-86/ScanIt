@@ -152,8 +152,16 @@ public class DuckDuckGoService {
             || haystack.contains("price") || haystack.contains("store") || haystack.contains("ghs");
     }
 
-    private double extractPrice(String text) {
-        Matcher ghs = Pattern.compile("(?:GHS|GH₵|₵)\\s*([\\d,]+(?:\\.\\d{1,2})?)", Pattern.CASE_INSENSITIVE).matcher(text);
+    /** The cedi sign, written as a Unicode escape rather than a literal character — a raw
+     *  literal depends on javac reading this file as UTF-8, which isn't guaranteed (no
+     *  project.build.sourceEncoding was set, and Alpine-based JDK images in particular
+     *  don't reliably default to UTF-8), silently breaking every price that used the cedi
+     *  sign instead of the literal text "GHS". The escape is pure ASCII in the source file,
+     *  so it decodes correctly regardless of the platform's default encoding. */
+    private static final String CEDI = "\u20B5";
+
+    double extractPrice(String text) {
+        Matcher ghs = Pattern.compile("(?:GHS|GH" + CEDI + "|" + CEDI + ")\\s*([\\d,]+(?:\\.\\d{1,2})?)", Pattern.CASE_INSENSITIVE).matcher(text);
         if (ghs.find()) return Double.parseDouble(ghs.group(1).replace(",", ""));
         Matcher plain = Pattern.compile("\\b([\\d,]+(?:\\.\\d{1,2})?)\\s*(?:GHS|cedis?)\\b", Pattern.CASE_INSENSITIVE).matcher(text);
         if (plain.find()) return Double.parseDouble(plain.group(1).replace(",", ""));
