@@ -92,6 +92,7 @@ export const scanService = {
       };
     } catch (err: any) {
       const msg: string = err?.message ?? '';
+      console.warn('[scan] Backend analyze failed, falling back to on-device Gemini:', msg);
       if (msg.includes('422') || msg.toLowerCase().includes('valid object') || msg.toLowerCase().includes('identify')) {
         return { success: false, message: 'invalid_object' } as any;
       }
@@ -110,6 +111,7 @@ export const scanService = {
       const data = await analyzeImageLocally(imageUri);
       return { success: true, data };
     } catch (err: any) {
+      console.warn('[scan] On-device Gemini fallback also failed:', err?.message ?? err);
       if (err?.message === 'invalid_object') {
         return { success: false, message: 'invalid_object' } as any;
       }

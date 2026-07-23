@@ -8,7 +8,7 @@
  * Get a free key at: https://aistudio.google.com/app/apikey
  */
 
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { AuthenticityStatus } from '@/types';
 
 const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
@@ -55,7 +55,8 @@ async function readImageBase64(uri: string): Promise<string | null> {
       reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
-  } catch {
+  } catch (e) {
+    console.warn('[gemini] Failed to read captured image:', e);
     return null;
   }
 }
@@ -69,25 +70,37 @@ function extractJson(text: string): string {
 }
 
 async function callGemini(body: object): Promise<string | null> {
-  if (!GEMINI_KEY) return null;
+  if (!GEMINI_KEY) {
+    console.warn('[gemini] EXPO_PUBLIC_GEMINI_API_KEY is not set — on-device fallback unavailable.');
+    return null;
+  }
   try {
     const resp = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      const errBody = await resp.text().catch(() => '');
+      console.warn(`[gemini] API error ${resp.status}:`, errBody.slice(0, 300));
+      return null;
+    }
     const json = await resp.json();
     const parts = json?.candidates?.[0]?.content?.parts;
-    if (!Array.isArray(parts)) return null;
+    if (!Array.isArray(parts)) {
+      console.warn('[gemini] Unexpected response shape (no parts array):', JSON.stringify(json).slice(0, 300));
+      return null;
+    }
     for (const part of parts) {
       if (!part.thought) {
         const t = (part.text ?? '').trim();
         if (t) return t;
       }
     }
+    console.warn('[gemini] Response had no usable text part (only thought blocks or empty).');
     return null;
-  } catch {
+  } catch (e) {
+    console.warn('[gemini] Network/parse error calling Gemini:', e);
     return null;
   }
 }
@@ -95,7 +108,10 @@ async function callGemini(body: object): Promise<string | null> {
 /** Identify a product from an image using Gemini Vision. */
 export async function identifyProduct(imageUri: string, mimeType = 'image/jpeg'): Promise<GeminiProductInfo | null> {
   const b64 = await readImageBase64(imageUri);
-  if (!b64) return null;
+  if (!b64) {
+    console.warn('[gemini] identifyProduct: could not read image at', imageUri);
+    return null;
+  }
 
   const text = await callGemini({
     contents: [{
@@ -116,14 +132,18 @@ export async function identifyProduct(imageUri: string, mimeType = 'image/jpeg')
   try {
     const parsed = JSON.parse(extractJson(text));
     const name = (parsed.name ?? '').trim();
-    if (!name) return null;
+    if (!name) {
+      console.warn('[gemini] identifyProduct: model returned an empty name (image judged unidentifiable):', text.slice(0, 200));
+      return null;
+    }
     return {
       name,
       brand: (parsed.brand ?? 'Unknown').trim(),
       category: (parsed.category ?? 'General').trim(),
       description: (parsed.description ?? '').trim(),
     };
-  } catch {
+  } catch (e) {
+    console.warn('[gemini] identifyProduct: failed to parse JSON from response:', text.slice(0, 200), e);
     return null;
   }
 }
