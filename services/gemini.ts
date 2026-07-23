@@ -20,6 +20,8 @@ export interface GeminiProductInfo {
   brand: string;
   category: string;
   description: string;
+  confidence: number;
+  authenticity: AuthenticityStatus;
 }
 
 export interface GeminiResearch {
@@ -30,14 +32,26 @@ export interface GeminiResearch {
   authenticity: AuthenticityStatus;
 }
 
+/** Mirrors GeminiService.IDENTIFY_PROMPT on the backend so the on-device fallback
+ *  produces the same kind of real, per-photo confidence/authenticity read instead
+ *  of a fixed placeholder value. */
 const IDENTIFY_PROMPT =
   'You are a product identification AI. Look at this image carefully and identify what product or item is shown.\n\n' +
   'IMPORTANT: Be generous — identify ANY physical object: consumer goods, food, drinks, electronics, clothing, ' +
   'household items, tools, stationery, cosmetics, medicine, etc. Even if the brand is unclear, identify the item type.\n\n' +
+  'Also assess two things from the image itself:\n' +
+  '1. confidence — how clearly and unambiguously you can identify this exact product (not a generic guess), as an integer 50-99.\n' +
+  '   Sharp, well-lit, clearly-branded packaging = 90-99. Partial/blurry/unusual angle = 65-85. Ambiguous or generic-looking = 50-64.\n' +
+  '2. authenticity — inspect packaging quality, print sharpness, logo accuracy, spelling, and material finish for counterfeit signs:\n' +
+  '   "authentic" — packaging looks consistent with the genuine brand, no red flags.\n' +
+  '   "suspicious" — some inconsistency (blurry print, off colors, misspelled text, generic packaging for a branded item).\n' +
+  '   "counterfeit" — clear counterfeit indicators (fake holograms, wrong logo, obviously copied packaging).\n' +
+  '   Default to "authentic" when there is nothing suspicious to point to — do not guess counterfeit without a concrete visual reason.\n\n' +
   'Respond with ONLY this JSON (no markdown, no explanation):\n' +
-  '{"name":"<specific product name>","brand":"<brand or Unknown>","category":"<Electronics|Clothing|Food|Drinks|Personal Care|Home|Stationery|Health|Tools|General>","description":"<2-3 sentences>"}\n\n' +
+  '{"name":"<specific product name>","brand":"<brand or Unknown>","category":"<Electronics|Clothing|Food|Drinks|Personal Care|Home|Stationery|Health|Tools|General>",' +
+  '"description":"<2-3 sentences>","confidence":<integer 50-99>,"authenticity":"<authentic|suspicious|counterfeit>"}\n\n' +
   'Only return empty name if the image is blank, a person only, or totally unrecognisable.\n' +
-  'If no clear product: {"name":"","brand":"","category":"General","description":""}';
+  'If no clear product: {"name":"","brand":"","category":"General","description":"","confidence":0,"authenticity":"authentic"}';
 
 async function readImageBase64(uri: string): Promise<string | null> {
   try {
@@ -136,11 +150,19 @@ export async function identifyProduct(imageUri: string, mimeType = 'image/jpeg')
       console.warn('[gemini] identifyProduct: model returned an empty name (image judged unidentifiable):', text.slice(0, 200));
       return null;
     }
+    const rawAuthenticity = (parsed.authenticity ?? 'authentic').trim();
+    const authenticity: AuthenticityStatus =
+      ['authentic', 'suspicious', 'counterfeit'].includes(rawAuthenticity) ? rawAuthenticity : 'authentic';
+    const rawConfidence = Number(parsed.confidence);
+    const confidence = Number.isFinite(rawConfidence) && rawConfidence > 0 ? Math.min(99, Math.max(50, rawConfidence)) : 75;
+
     return {
       name,
       brand: (parsed.brand ?? 'Unknown').trim(),
       category: (parsed.category ?? 'General').trim(),
       description: (parsed.description ?? '').trim(),
+      confidence,
+      authenticity,
     };
   } catch (e) {
     console.warn('[gemini] identifyProduct: failed to parse JSON from response:', text.slice(0, 200), e);

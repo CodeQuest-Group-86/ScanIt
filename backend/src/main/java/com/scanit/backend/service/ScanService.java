@@ -158,12 +158,32 @@ public class ScanService {
             log.warn("CompuGhana enrichment failed: {}", e.getMessage());
         }
 
-        // Persist updated specs/price to the product record
+        // Jumia Ghana is the standard reference price for this app — if Gemini's grounded
+        // search found a real Jumia price, that takes priority over CompuGhana or the
+        // generic typical price computed above.
+        if (research != null && research.sellers() != null) {
+            double jumiaPrice = 0;
+            for (GeminiService.ResearchSeller s : research.sellers()) {
+                if ("jumia ghana".equalsIgnoreCase(s.name()) && s.price() > 0) {
+                    jumiaPrice = s.price();
+                    break;
+                }
+            }
+            if (jumiaPrice > 0) {
+                research = new GeminiService.ProductResearch(
+                        research.specs(), research.priceMin(), research.priceMax(),
+                        jumiaPrice, research.sellers()
+                );
+            }
+        }
+
+        // Persist updated specs/price to the product record. Prices are refreshed on every
+        // scan (not just when currently 0) so listings stay live as market prices change.
         if (research != null) {
             if (research.specs() != null && !research.specs().isEmpty()) {
                 matched.setSpecs(research.specs());
             }
-            if (research.priceTypical() > 0 && matched.getPrice() == 0) {
+            if (research.priceTypical() > 0) {
                 matched.setPrice(research.priceTypical());
             }
             productRepository.save(matched);

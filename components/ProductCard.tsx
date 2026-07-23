@@ -5,6 +5,7 @@ import type { Product } from '@/types';
 import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
 import { AuthenticityBadge } from './Badge';
 import { formatPrice } from '@/utils/format';
+import { useScanStore } from '@/stores/scan';
 
 interface ProductCardProps {
   product: Product;
@@ -15,6 +16,8 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onPress, onSave, isSaved = false, compact = false }: ProductCardProps) {
+  const isPremium = useScanStore(s => s.isPremium);
+
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -37,7 +40,14 @@ export default function ProductCard({ product, onPress, onSave, isSaved = false,
         <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
         <View style={styles.row}>
           <Text style={styles.price}>{formatPrice(product.price, product.currency)}</Text>
-          <AuthenticityBadge status={product.authenticity} />
+          {isPremium ? (
+            <AuthenticityBadge status={product.authenticity} />
+          ) : (
+            <View style={styles.lockedBadge}>
+              <Ionicons name="lock-closed" size={10} color={Colors.textSecondary} />
+              <Text style={styles.lockedBadgeText}>Authenticity</Text>
+            </View>
+          )}
         </View>
         {!compact && product.sellers.length > 0 && (
           <Text style={styles.sellers}>
@@ -78,5 +88,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap', marginTop: 2 },
   price: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.primary },
   sellers: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
+  lockedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.border, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
+  lockedBadgeText: { fontSize: 10, fontWeight: Typography.weights.semibold, color: Colors.textSecondary },
   save: { padding: Spacing.xs },
 });

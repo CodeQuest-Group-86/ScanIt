@@ -3,6 +3,8 @@ import TabScrollView from "@/components/ui/TabScrollView";
 import { productService } from "@/services/products";
 import { useAuthStore } from "@/stores/auth";
 import { useProductsStore } from "@/stores/products";
+import { useSavedStore } from "@/stores/saved";
+import { useScanStore } from "@/stores/scan";
 import { Colors, Radii, Shadows, Spacing, Typography } from "@/theme";
 import type { InventoryItem } from "@/types";
 import { getInitials } from "@/utils/format";
@@ -22,6 +24,11 @@ interface RowItem {
 export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
   const { unreadNotificationsCount } = useProductsStore();
+  // Derived live from the actual store arrays instead of the cached user object
+  // (which is only ever set at login/signup) so these update the instant a scan
+  // completes or a product is saved/unsaved, without needing a refetch.
+  const scansCount = useScanStore(s => s.history.length);
+  const savedCount = useSavedStore(s => s.savedProducts.length);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loadingInventory, setLoadingInventory] = useState(false);
 
@@ -162,12 +169,12 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.scansCount}</Text>
+              <Text style={styles.statValue}>{scansCount}</Text>
               <Text style={styles.statLabel}>Scans</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{user.savedCount}</Text>
+              <Text style={styles.statValue}>{savedCount}</Text>
               <Text style={styles.statLabel}>Saved</Text>
             </View>
           </View>

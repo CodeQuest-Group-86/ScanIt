@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
+import { useScanStore } from '@/stores/scan';
 import { AuthenticityBadge } from '@/components/Badge';
 import { Colors, Spacing, Typography, Radii, Shadows } from '@/theme';
 import { formatPrice } from '@/utils/format';
@@ -13,6 +14,7 @@ import type { Seller } from '@/types';
 export default function ProductDetailScreen() {
   const { selectedProduct } = useProductsStore();
   const { save, remove, isSaved } = useSavedStore();
+  const isPremium = useScanStore(s => s.isPremium);
 
   if (!selectedProduct) {
     return (
@@ -56,7 +58,14 @@ export default function ProductDetailScreen() {
               <Text style={styles.brand}>{selectedProduct.brand}</Text>
               <Text style={styles.name}>{selectedProduct.name}</Text>
             </View>
-            <AuthenticityBadge status={selectedProduct.authenticity} />
+            {isPremium ? (
+              <AuthenticityBadge status={selectedProduct.authenticity} />
+            ) : (
+              <TouchableOpacity style={styles.lockedBadge} onPress={() => router.push('/subscribe')} activeOpacity={0.8}>
+                <Ionicons name="lock-closed" size={11} color={Colors.textSecondary} />
+                <Text style={styles.lockedBadgeText}>Authenticity</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <View style={styles.priceRow}>
@@ -95,6 +104,9 @@ export default function ProductDetailScreen() {
 }
 
 function SellerCard({ seller }: { seller: Seller }) {
+  const hasPhone = !!seller.phone;
+  const hasWhatsapp = !!seller.whatsapp;
+
   return (
     <View style={styles.sellerCard}>
       <View style={styles.sellerInfo}>
@@ -111,26 +123,25 @@ function SellerCard({ seller }: { seller: Seller }) {
           <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
           <Text style={styles.sellerLocation}>{seller.location} · {seller.distance}</Text>
         </View>
-        <View style={styles.sellerMeta}>
-          <Ionicons name="star" size={13} color={Colors.warning} />
-          <Text style={styles.sellerRating}>{seller.rating} ({seller.reviewCount} reviews)</Text>
-        </View>
+        {seller.reviewCount > 0 && (
+          <View style={styles.sellerMeta}>
+            <Ionicons name="star" size={13} color={Colors.warning} />
+            <Text style={styles.sellerRating}>{seller.rating} ({seller.reviewCount} reviews)</Text>
+          </View>
+        )}
       </View>
       <View style={styles.contactBtns}>
         <TouchableOpacity
-          style={styles.contactBtn}
-          onPress={() => Linking.openURL(`tel:${seller.phone}`)}>
-          <Ionicons name="call-outline" size={18} color={Colors.primary} />
+          style={[styles.contactBtn, !hasPhone && styles.contactBtnDisabled]}
+          onPress={() => hasPhone && Linking.openURL(`tel:${seller.phone}`)}
+          disabled={!hasPhone}>
+          <Ionicons name="call-outline" size={18} color={hasPhone ? Colors.primary : Colors.textMuted} />
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.contactBtn}
-          onPress={() => Linking.openURL(`https://wa.me/${seller.whatsapp.replace('+', '')}`)}>
-          <Ionicons name="logo-whatsapp" size={18} color={Colors.success} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.contactBtn}
-          onPress={() => Linking.openURL(`sms:${seller.phone}`)}>
-          <Ionicons name="chatbubble-outline" size={18} color={Colors.accent} />
+          style={[styles.contactBtn, !hasWhatsapp && styles.contactBtnDisabled]}
+          onPress={() => hasWhatsapp && Linking.openURL(`https://wa.me/${seller.whatsapp.replace('+', '')}`)}
+          disabled={!hasWhatsapp}>
+          <Ionicons name="logo-whatsapp" size={18} color={hasWhatsapp ? Colors.success : Colors.textMuted} />
         </TouchableOpacity>
       </View>
     </View>
@@ -171,4 +182,7 @@ const styles = StyleSheet.create({
   sellerRating: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
   contactBtns: { flexDirection: 'row', gap: Spacing.sm },
   contactBtn: { width: 40, height: 40, borderRadius: Radii.md, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+  contactBtnDisabled: { opacity: 0.4 },
+  lockedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.surface, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
+  lockedBadgeText: { fontSize: Typography.sizes.xs, fontWeight: Typography.weights.semibold, color: Colors.textSecondary },
 });

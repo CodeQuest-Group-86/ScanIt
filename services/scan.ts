@@ -31,7 +31,10 @@ async function analyzeImageLocally(imageUri: string): Promise<ScanResult> {
     ?? research?.priceMin
     ?? 0;
 
-  const authenticity: AuthenticityStatus = research?.authenticity ?? 'authentic';
+  // Authenticity comes from the vision read of the actual photo (packaging, print
+  // quality, etc.) — matches ScanService.java's backend behavior. The snippet-research
+  // authenticity guess is based on search text, not the image, so it isn't used here.
+  const authenticity: AuthenticityStatus = info.authenticity;
 
   return {
     id: `local_${Date.now()}`,
@@ -50,7 +53,7 @@ async function analyzeImageLocally(imageUri: string): Promise<ScanResult> {
       authenticity,
       sellers: ddg.sellers,
     },
-    confidence: 88,
+    confidence: info.confidence,
     scannedAt: new Date().toISOString(),
     authenticityStatus: authenticity,
     imageUri,
