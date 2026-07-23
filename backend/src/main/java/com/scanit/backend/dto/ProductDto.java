@@ -27,4 +27,6 @@ public class ProductDto {
     private boolean verified;
     private String authenticity;
     private List<SellerDto> sellers;
+    /** How many users have flagged this product as possibly counterfeit. */
+    private long reportCount;
 }

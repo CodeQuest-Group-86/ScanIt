@@ -88,6 +88,15 @@ export const productService = {
     }
   },
 
+  async reportCounterfeit(productId: string, sellerName?: string, reason?: string): Promise<ApiResponse<{ reportCount: number }>> {
+    try {
+      const data = await api.post<{ reportCount: number }>(`/products/${productId}/report-counterfeit`, { sellerName, reason });
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, message: e?.message ?? 'Failed to submit report', data: null as never };
+    }
+  },
+
   async semanticSearch(query: string, category?: string): Promise<ApiResponse<(Product & { semanticScore: number })[]>> {
     try {
       const res = await this.getProducts(query, category);

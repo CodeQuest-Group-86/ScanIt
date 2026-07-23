@@ -65,6 +65,8 @@ export interface Product {
   authenticity: AuthenticityStatus;
   sellers: Seller[];
   barcode?: string;
+  /** How many users have flagged this product as possibly counterfeit. */
+  reportCount?: number;
 }
 
 export type AuthenticityStatus = 'authentic' | 'suspicious' | 'counterfeit';

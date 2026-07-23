@@ -1,5 +1,6 @@
 import { AuthenticityBadge } from '@/components/Badge';
 import GlassCard from '@/components/GlassCard';
+import { productService } from '@/services/products';
 import { useProductsStore } from '@/stores/products';
 import { useSavedStore } from '@/stores/saved';
 import { useScanStore } from '@/stores/scan';
@@ -11,8 +12,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+    Alert,
     Animated, Dimensions, Image, Linking, Platform,
     ScrollView,
     StyleSheet,
@@ -34,6 +36,8 @@ export default function ScanResultScreen() {
   const { currentResult, clearResult, offlineMode, isPremium } = useScanStore();
   const { loadRecommendations, selectProduct } = useProductsStore();
   const { save, remove, isSaved } = useSavedStore();
+  const [reported, setReported] = useState(false);
+  const [reportCountOverride, setReportCountOverride] = useState<number | null>(null);
 
   const slideAnim = useRef(new Animated.Value(SHEET_HEIGHT)).current;
   const bgAnim = useRef(new Animated.Value(0)).current;
@@ -76,6 +80,29 @@ export default function ScanResultScreen() {
   };
 
   const handleUpgrade = () => router.push('/subscribe');
+
+  const handleReport = () => {
+    Alert.alert(
+      'Report as counterfeit?',
+      `Let other users know "${product.name}" looked fake or suspicious to you. One report per product.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await productService.reportCounterfeit(product.id);
+            if (res.success) {
+              setReported(true);
+              setReportCountOverride(res.data.reportCount);
+            } else {
+              Alert.alert('Could not submit report', res.message ?? 'Try again later.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -263,6 +290,21 @@ export default function ScanResultScreen() {
               <Ionicons name="arrow-forward" size={18} color={Colors.white} />
             </TouchableOpacity>
           )}
+
+          {/* Community counterfeit reporting */}
+          <View style={styles.reportRow}>
+            {(reportCountOverride ?? product.reportCount ?? 0) > 0 && (
+              <Text style={styles.reportCountText}>
+                {reportCountOverride ?? product.reportCount} {(reportCountOverride ?? product.reportCount) === 1 ? 'user has' : 'users have'} flagged this as possibly counterfeit
+              </Text>
+            )}
+            <TouchableOpacity onPress={handleReport} disabled={reported} activeOpacity={0.7} style={styles.reportBtn}>
+              <Ionicons name="flag-outline" size={14} color={reported ? Colors.success : Colors.textSecondary} />
+              <Text style={[styles.reportBtnText, reported && styles.reportBtnTextDone]}>
+                {reported ? 'Reported — thank you' : 'Report as counterfeit'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </Animated.View>
     </View>
@@ -413,4 +455,9 @@ const styles = StyleSheet.create({
   noSellersText: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
   recoCta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radii.pill, paddingVertical: Spacing.md, ...Shadows.md },
   recoCtaText: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.bold, color: Colors.white },
+  reportRow: { alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
+  reportCountText: { fontSize: Typography.sizes.xs, color: Colors.warning, textAlign: 'center' },
+  reportBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
+  reportBtnText: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
+  reportBtnTextDone: { color: Colors.success },
 });

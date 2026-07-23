@@ -1,5 +1,6 @@
 import { identifyProduct, isGeminiConfigured, researchFromSnippets } from '@/services/gemini';
 import { searchProduct } from '@/services/duckduckgo';
+import { cacheBarcodeResult, getCachedBarcode } from '@/services/barcodeCache';
 import { api } from '@/utils/api';
 import { buildProductGoogleUrl } from '@/utils/links';
 import type { ApiResponse, AuthenticityStatus, ScanResult } from '@/types';
@@ -128,7 +129,9 @@ export const scanService = {
   async scanBarcode(code: string): Promise<ApiResponse<ScanResult>> {
     try {
       const backendResult = await api.get<ScanResult>(`/scans/barcode/${code}`);
-      return { success: true, data: { ...backendResult, confidence: 99 } };
+      const data = { ...backendResult, confidence: 99 };
+      cacheBarcodeResult(code, data).catch(() => null); // best-effort, don't block on it
+      return { success: true, data };
     } catch (err: any) {
       const msg: string = err?.message ?? '';
       if (msg.includes('401') || msg.includes('403')) {
@@ -137,6 +140,15 @@ export const scanService = {
       if (msg.includes('429')) {
         return { success: false, message: 'quota_exceeded' } as any;
       }
+
+      // Backend unreachable (network error, cold-start timeout, etc.) — fall back to a
+      // previously-successful lookup for this exact barcode, if we have one on this device.
+      const cached = await getCachedBarcode(code);
+      if (cached) {
+        console.warn('[scan] Backend unreachable for barcode, using offline cache:', code);
+        return { success: true, data: { ...cached, offlineMode: true } };
+      }
+
       throw err;
     }
   },

@@ -42,6 +42,7 @@ public class ScanService {
     private final GeminiService geminiService;
     private final DuckDuckGoService duckDuckGoService;
     private final CompuGhanaService compuGhanaService;
+    private final PriceAlertService priceAlertService;
 
     /** Free tier resets daily. Paid plan limits must stay in sync with PAYSTACK_PLANS in
      *  services/payment.ts and reset when a new subscription activates, not daily.
@@ -184,9 +185,13 @@ public class ScanService {
                 matched.setSpecs(research.specs());
             }
             if (research.priceTypical() > 0) {
+                double oldPrice = matched.getPrice();
                 matched.setPrice(research.priceTypical());
+                productRepository.save(matched);
+                priceAlertService.checkAndNotify(matched, oldPrice, research.priceTypical());
+            } else {
+                productRepository.save(matched);
             }
-            productRepository.save(matched);
         }
 
         double confidence = gemini.confidence() > 0
@@ -473,6 +478,7 @@ public class ScanService {
                     .verified(base.isVerified())
                     .authenticity(base.getAuthenticity())
                     .sellers(allSellers)
+                    .reportCount(base.getReportCount())
                     .build();
         }
 

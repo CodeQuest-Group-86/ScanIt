@@ -12,6 +12,7 @@ import java.util.Optional;
 @Repository
 public interface SavedProductRepository extends JpaRepository<SavedProduct, String> {
     List<SavedProduct> findByUser(User user);
+    List<SavedProduct> findByProduct(Product product);
     Optional<SavedProduct> findByUserAndProduct(User user, Product product);
     boolean existsByUserAndProduct(User user, Product product);
     void deleteByUserAndProduct(User user, Product product);

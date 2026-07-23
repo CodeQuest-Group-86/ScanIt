@@ -1,3 +1,115 @@
+# Update — Price Alerts, Offline Barcode Cache, Community Counterfeit Reporting (2026-07-23)
+
+Three features added on top of everything below: live price-drop notifications,
+an offline-first barcode cache, and community counterfeit reporting. This
+section covers all three; the 2026-07-21 report further down is unchanged
+history.
+
+---
+
+## 1. Price-drop alerts
+
+The schema already had a `PriceAlert` entity and a working `GET
+/notifications/price-alerts` endpoint, and `notifications.tsx` already had
+icon/color mappings for a `price_alert` notification type — none of it was
+ever wired up. Nothing in the codebase ever created a `PriceAlert` row or a
+`price_alert`-typed `Notification`.
+
+**What I added:**
+- `SavedProductRepository.findByProduct(Product)` — needed to find who to
+  notify; didn't exist before (only the reverse lookup, by user, existed).
+- New `PriceAlertService.checkAndNotify(product, oldPrice, newPrice)` — for
+  every user who has the product saved, records a `PriceAlert` row (drop
+  amount + percent) and sends a real notification via
+  `NotificationService.notify(...)` (in-app + push, reusing the pipeline from
+  the previous session's work).
+- Wired into `ScanService.analyzeImage`: prices now refresh on **every** scan
+  (previously only when the stored price was exactly 0), and if the fresh
+  price is a genuine drop from the last known price, `PriceAlertService` fires.
+  A first-time price (`oldPrice == 0`) or a price increase never counts as a
+  "drop."
+- No frontend work was needed — `notifications.tsx` already renders
+  `price_alert` notifications correctly; they just never existed before.
+
+## 2. Offline-first barcode cache
+
+`services/scan.ts`'s `analyzeImage` (photo) path already had an on-device
+Gemini fallback for when the backend is unreachable; `scanBarcode` had no
+fallback of any kind — a cold backend meant an outright failure.
+
+I deliberately did **not** pre-seed this with a fabricated barcode-to-product
+database — inventing barcode mappings I can't verify would be worse than no
+offline support, since a wrong mapping is actively misleading. Instead:
+
+**What I added:**
+- New `services/barcodeCache.ts` — an `AsyncStorage`-backed cache, keyed by
+  barcode, capped at 500 entries (oldest evicted first).
+- `scanService.scanBarcode`: every successful backend lookup gets cached
+  locally (best-effort, never blocks the response). On a backend failure
+  (network error, cold-start timeout), it now checks this cache before giving
+  up — a barcode this device has looked up successfully before (by this user,
+  in an earlier session) resolves instantly from cache instead of failing.
+- The cache only ever grows from real, previously-successful lookups — first
+  scan of any given barcode still needs the backend (or Open Food Facts,
+  which the backend already falls back to for unknown barcodes).
+
+## 3. Community counterfeit reporting
+
+New crowdsourced trust signal — the honest alternative to the fabricated
+review/rating data flagged in the previous round of fixes. Real user reports
+instead of invented star ratings.
+
+**What I added (backend):**
+- New `CounterfeitReport` entity (`user`, `product`, optional `sellerName`,
+  optional `reason`, timestamp) + `CounterfeitReportRepository`
+  (`countByProduct`, `existsByUserAndProduct` — one report per user per
+  product; resubmitting confirms rather than inflating the count).
+- `ProductDto.reportCount` — added to both places a `ProductDto` gets built
+  (`ProductService.toDto` and the ad-hoc one in `ScanService.toDto`'s research
+  branch, which previously would have silently dropped it).
+- `ProductService.reportCounterfeit(userEmail, productId, request)` +
+  `POST /products/{id}/report-counterfeit` on `ProductController` — requires
+  sign-in (JWT), same as everything else not explicitly `permitAll`'d.
+
+**What I added (app):**
+- `scan-result.tsx`: a "Report as counterfeit" action at the bottom of the
+  sheet, open to every user (not premium-gated — broad participation is what
+  makes the signal useful). Confirms via `Alert`, submits with no required
+  free-text (keeps it to one tap), shows "Reported — thank you" after. If the
+  product already has reports, shows "N users have flagged this as possibly
+  counterfeit" above the button.
+- `services/products.ts`: `reportCounterfeit(productId, sellerName?, reason?)`.
+- `types/index.ts`: `Product.reportCount?: number`.
+
+---
+
+## Files changed (this round)
+
+**Price alerts (backend)**
+- `backend/.../repository/SavedProductRepository.java` — `findByProduct`
+- `backend/.../service/PriceAlertService.java` — new
+- `backend/.../service/ScanService.java` — price refresh + alert hook
+
+**Offline barcode cache (app)**
+- `services/barcodeCache.ts` — new
+- `services/scan.ts` — cache read/write around `scanBarcode`
+
+**Counterfeit reporting (backend)**
+- `backend/.../entity/CounterfeitReport.java` — new
+- `backend/.../repository/CounterfeitReportRepository.java` — new
+- `backend/.../dto/request/ReportCounterfeitRequest.java` — new
+- `backend/.../dto/ProductDto.java` — `reportCount`
+- `backend/.../service/ProductService.java` — `reportCounterfeit`, count in `toDto`
+- `backend/.../controller/ProductController.java` — `POST /{id}/report-counterfeit`
+
+**Counterfeit reporting (app)**
+- `app/scan-result.tsx` — report button + count display
+- `services/products.ts` — `reportCounterfeit`
+- `types/index.ts` — `Product.reportCount`
+
+---
+---
+
 # Update — Network, Payments, Authenticity & OTP (2026-07-21)
 
 This documents everything changed in response to: the built APK failing with
@@ -94,6 +206,11 @@ cosmetic randomization:**
 - The per-scan authenticity result is now separate from the product's long-term stored authenticity — one blurry photo won't retroactively downgrade a catalog product's authenticity for every other user; it only affects that scan's result.
 - Barcode scans (95%/99%) were left as-is — those are exact database/Open Food Facts matches, so a high fixed confidence there is accurate, not a bug.
 
+*(2026-07-23 update: the same hardcoded-confidence bug existed independently
+in the on-device Gemini fallback, `services/gemini.ts`/`services/scan.ts` —
+`confidence: 88` for every single fallback scan. Fixed the same way — see the
+top of this file.)*
+
 ---
 
 ## 4. Prices not being fetched
@@ -111,6 +228,12 @@ If prices are still missing after that, the next thing to check is whether
 `GEMINI_API_KEY` (and optionally `OPENROUTER_API_KEY` as a fallback) is
 actually set in your backend's production environment — without it, Gemini
 research silently returns nothing (by design, so a scan doesn't hard-fail).
+
+*(2026-07-23 update: there were two real bugs here after all, found once the
+backend was reachable again — `DuckDuckGoService`'s price regex used a raw
+cedi-sign character with no UTF-8 source encoding declared, silently mangled
+at compile time; and the research prompt hardcoded Jumia's price to `0`
+regardless of what was actually found. Both fixed — see the top of this file.)*
 
 ---
 

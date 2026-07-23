@@ -3,12 +3,18 @@ package com.scanit.backend.service;
 import com.scanit.backend.dto.ProductDto;
 import com.scanit.backend.dto.RecommendationDto;
 import com.scanit.backend.dto.SellerDto;
+import com.scanit.backend.dto.request.ReportCounterfeitRequest;
+import com.scanit.backend.entity.CounterfeitReport;
 import com.scanit.backend.entity.InventoryItem;
 import com.scanit.backend.entity.Product;
 import com.scanit.backend.entity.Seller;
+import com.scanit.backend.entity.User;
+import com.scanit.backend.exception.BadRequestException;
 import com.scanit.backend.exception.ResourceNotFoundException;
+import com.scanit.backend.repository.CounterfeitReportRepository;
 import com.scanit.backend.repository.InventoryItemRepository;
 import com.scanit.backend.repository.ProductRepository;
+import com.scanit.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +27,8 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final InventoryItemRepository inventoryItemRepository;
+    private final CounterfeitReportRepository counterfeitReportRepository;
+    private final UserRepository userRepository;
 
     private static final String[] THUMBNAIL_COLORS =
             {"#F1C40F", "#E74C3C", "#2ECC71", "#3498DB", "#9B59B6", "#E67E22"};
@@ -97,7 +105,28 @@ public class ProductService {
                 .verified(product.isVerified())
                 .authenticity(product.getAuthenticity().name().toLowerCase())
                 .sellers(sellers)
+                .reportCount(counterfeitReportRepository.countByProduct(product))
                 .build();
+    }
+
+    /** One report per user per product — resubmitting just confirms, doesn't inflate the count. */
+    public long reportCounterfeit(String userEmail, String productId, ReportCounterfeitRequest req) {
+        Product product = findById(productId);
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userEmail));
+
+        if (counterfeitReportRepository.existsByUserAndProduct(user, product)) {
+            throw new BadRequestException("You've already reported this product.");
+        }
+
+        counterfeitReportRepository.save(CounterfeitReport.builder()
+                .user(user)
+                .product(product)
+                .sellerName(req.getSellerName())
+                .reason(req.getReason())
+                .build());
+
+        return counterfeitReportRepository.countByProduct(product);
     }
 
     public SellerDto sellerToDto(Seller seller, double price) {
