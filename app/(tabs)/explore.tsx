@@ -221,13 +221,13 @@ function RecentScanCard({
         activeOpacity={0.8}
       >
         <Image
-          source={
-            product.imageUrl
-              ? { uri: product.imageUrl }
-              : require("@/assets/images/product-placeholder.png")
-          }
-          style={styles.scanThumb}
+          source={{
+            uri:
+              product.imageUrl ||
+              `https://via.placeholder.com/64x64/E76F2E/FFFFFF?text=${product.brand?.[0] ?? "P"}`,
+          }}
         />
+
         <View style={styles.scanInfo}>
           <View style={styles.scanTop}>
             <Text style={styles.scanName} numberOfLines={1}>

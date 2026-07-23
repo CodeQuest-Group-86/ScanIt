@@ -1,25 +1,28 @@
-import Button from '@/components/Button';
-import Input from '@/components/Input';
-import AuthScreenLayout from '@/components/ui/AuthScreenLayout';
-import { useAuthStore } from '@/stores/auth';
-import { Colors, Radii, Spacing, Typography } from '@/theme';
-import { Link, router } from 'expo-router';
-import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Button from "@/components/Button";
+import Input from "@/components/Input";
+import AuthScreenLayout from "@/components/ui/AuthScreenLayout";
+import { useAuthStore } from "@/stores/auth";
+import { Colors, Radii, Spacing, Typography } from "@/theme";
+import { Link, router } from "expo-router";
+import React, { useState } from "react";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function SignInScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
 
   const { login, isLoading, error, clearError } = useAuthStore();
 
   const validate = () => {
     const e: typeof errors = {};
-    if (!email.trim()) e.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Enter a valid email';
-    if (!password) e.password = 'Password is required';
-    else if (password.length < 6) e.password = 'Password must be at least 6 characters';
+    if (!email.trim()) e.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(email)) e.email = "Enter a valid email";
+    if (!password) e.password = "Password is required";
+    else if (password.length < 6)
+      e.password = "Password must be at least 6 characters";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -28,7 +31,7 @@ export default function SignInScreen() {
     clearError();
     if (!validate()) return;
     const ok = await login(email.trim(), password);
-    if (ok) router.replace('/(tabs)/explore');
+    if (ok) router.replace("/(tabs)/explore");
   };
 
   return (
@@ -74,27 +77,45 @@ export default function SignInScreen() {
         error={errors.password}
       />
 
-      <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')} style={styles.forgotRow}>
+      <TouchableOpacity
+        onPress={() => router.push("/(auth)/forgot-password")}
+        style={styles.forgotRow}
+      >
         <Text style={styles.forgot}>Forgot password?</Text>
       </TouchableOpacity>
 
-      <Button label="Sign In" onPress={handleLogin} loading={isLoading} fullWidth size="lg" variant="gradient" />
+      <Button
+        label="Sign In"
+        onPress={handleLogin}
+        loading={isLoading}
+        size="sm"
+        variant="gradient"
+        style={{ width: 280, alignSelf: "center" }}
+      />
     </AuthScreenLayout>
   );
 }
 
 const styles = StyleSheet.create({
   errorBanner: {
-    backgroundColor: Colors.danger + '20',
+    backgroundColor: Colors.danger + "20",
     borderRadius: Radii.md,
     padding: Spacing.md,
     borderLeftWidth: 3,
     borderLeftColor: Colors.danger,
   },
   errorBannerText: { color: Colors.danger, fontSize: Typography.sizes.sm },
-  forgotRow: { alignSelf: 'flex-end', marginTop: -Spacing.sm },
-  forgot: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.medium },
-  footerRow: { flexDirection: 'row', alignItems: 'center' },
+  forgotRow: { alignSelf: "flex-end", marginTop: -Spacing.sm },
+  forgot: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.accent,
+    fontWeight: Typography.weights.medium,
+  },
+  footerRow: { flexDirection: "row", alignItems: "center" },
   footerText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
-  link: { fontSize: Typography.sizes.md, color: Colors.primary, fontWeight: Typography.weights.bold },
+  link: {
+    fontSize: Typography.sizes.md,
+    color: Colors.primary,
+    fontWeight: Typography.weights.bold,
+  },
 });
