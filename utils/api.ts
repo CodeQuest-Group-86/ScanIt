@@ -13,11 +13,12 @@ import * as SecureStore from 'expo-secure-store';
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
 
 /**
- * Render's free tier suspends the backend after ~15 min idle; the first request after
- * that can take 30-50s to wake it back up. Give requests real headroom instead of
+ * Render's free tier suspends the backend after ~15 min idle. Measured cold-start time
+ * for this app is ~155s (Spring Boot + Hibernate schema validation on boot), well past
+ * the "30-50s" Render advertises generally — give requests real headroom instead of
  * failing fast and showing "Network request failed" for what is actually just a cold start.
  */
-const REQUEST_TIMEOUT_MS = 45000;
+const REQUEST_TIMEOUT_MS = 200000;
 
 function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
