@@ -46,7 +46,11 @@ export default function RecommendationsScreen() {
             <Text style={styles.scannedLabel}>Scanned</Text>
             <Text style={styles.scannedName} numberOfLines={1}>{selectedProduct.name}</Text>
           </View>
-          <Text style={styles.scannedPrice}>{formatPrice(selectedProduct.price, selectedProduct.currency)}</Text>
+          {selectedProduct.price > 0 ? (
+            <Text style={styles.scannedPrice}>{formatPrice(selectedProduct.price, selectedProduct.currency)}</Text>
+          ) : (
+            <Text style={styles.scannedPriceUnavailable}>Price unavailable</Text>
+          )}
         </View>
       )}
 
@@ -98,7 +102,11 @@ function RecommendationCard({ item }: { item: Recommendation }) {
           <Ionicons name="location-outline" size={13} color={Colors.textSecondary} />
           <Text style={styles.sellerText}>{item.seller.name} · {item.seller.distance}</Text>
         </View>
-        <Text style={styles.cardPrice}>{formatPrice(item.price, item.product.currency)}</Text>
+        {item.price > 0 ? (
+          <Text style={styles.cardPrice}>{formatPrice(item.price, item.product.currency)}</Text>
+        ) : (
+          <Text style={styles.cardPriceUnavailable}>Price unavailable</Text>
+        )}
       </View>
       <View style={styles.discountBadge}>
         <Text style={styles.discountText}>{formatDiscount(item.discountPercent)}</Text>
@@ -117,6 +125,7 @@ const styles = StyleSheet.create({
   scannedLabel: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
   scannedName: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.text },
   scannedPrice: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.textSecondary, textDecorationLine: 'line-through' },
+  scannedPriceUnavailable: { fontSize: Typography.sizes.sm, fontStyle: 'italic', color: Colors.textSecondary },
   sortRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, marginBottom: Spacing.md },
   sortLabel: { fontSize: Typography.sizes.sm, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
   sortChip: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radii.pill, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.white },
@@ -134,6 +143,7 @@ const styles = StyleSheet.create({
   sellerRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   sellerText: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
   cardPrice: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.primary },
+  cardPriceUnavailable: { fontSize: Typography.sizes.sm, fontStyle: 'italic', color: Colors.textSecondary },
   discountBadge: { backgroundColor: Colors.success + '20', paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: Radii.pill },
   discountText: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.success },
 });

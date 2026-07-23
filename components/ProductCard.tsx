@@ -39,7 +39,11 @@ export default function ProductCard({ product, onPress, onSave, isSaved = false,
         <Text style={styles.brand}>{product.brand}</Text>
         <Text style={styles.name} numberOfLines={2}>{product.name}</Text>
         <View style={styles.row}>
-          <Text style={styles.price}>{formatPrice(product.price, product.currency)}</Text>
+          {product.price > 0 ? (
+            <Text style={styles.price}>{formatPrice(product.price, product.currency)}</Text>
+          ) : (
+            <Text style={styles.priceUnavailable}>Price unavailable</Text>
+          )}
           {isPremium ? (
             <AuthenticityBadge status={product.authenticity} />
           ) : (
@@ -87,6 +91,7 @@ const styles = StyleSheet.create({
   name: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.text },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap', marginTop: 2 },
   price: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.primary },
+  priceUnavailable: { fontSize: Typography.sizes.sm, fontStyle: 'italic', color: Colors.textSecondary },
   sellers: { fontSize: Typography.sizes.xs, color: Colors.textSecondary },
   lockedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.border, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radii.pill },
   lockedBadgeText: { fontSize: 10, fontWeight: Typography.weights.semibold, color: Colors.textSecondary },

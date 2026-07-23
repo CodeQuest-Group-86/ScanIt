@@ -1,3 +1,4 @@
+import { AuthenticityBadge } from "@/components/Badge";
 import GlassCard from "@/components/GlassCard";
 import CoachMarkOverlay from "@/components/ui/CoachMarkOverlay";
 import Glass3DButton from "@/components/ui/Glass3DButton";
@@ -195,6 +196,7 @@ function RecentScanCard({
 }) {
   const { product, authenticityStatus, scannedAt } = scan;
   const bestSeller = product.sellers?.[0];
+  const isPremium = useScanStore((s) => s.isPremium);
 
   return (
     <GlassCard
@@ -233,10 +235,21 @@ function RecentScanCard({
             </TouchableOpacity>
           </View>
           <View style={styles.scanMeta}>
-            <Text style={styles.scanPrice}>
-              {formatPrice(product.price, product.currency)}
-            </Text>
-            {/* <AuthenticityBadge status={authenticityStatus} /> */}
+            {product.price > 0 ? (
+              <Text style={styles.scanPrice}>
+                {formatPrice(product.price, product.currency)}
+              </Text>
+            ) : (
+              <Text style={styles.scanPriceUnavailable}>Price unavailable</Text>
+            )}
+            {isPremium ? (
+              <AuthenticityBadge status={authenticityStatus} />
+            ) : (
+              <View style={styles.lockedBadge}>
+                <Ionicons name="lock-closed" size={9} color={Colors.textSecondary} />
+                <Text style={styles.lockedBadgeText}>Authenticity</Text>
+              </View>
+            )}
           </View>
           {bestSeller && (
             <View style={styles.scanSeller}>
@@ -391,6 +404,13 @@ const styles = StyleSheet.create({
     fontWeight: Typography.weights.extrabold,
     color: Colors.primary,
   },
+  scanPriceUnavailable: {
+    fontSize: Typography.sizes.sm,
+    fontStyle: "italic",
+    color: Colors.textMuted,
+  },
+  lockedBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: Colors.border, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: Radii.pill },
+  lockedBadgeText: { fontSize: 10, fontWeight: Typography.weights.semibold, color: Colors.textSecondary },
   scanSeller: { flexDirection: "row", alignItems: "center", gap: 4 },
   scanSellerName: {
     flex: 1,

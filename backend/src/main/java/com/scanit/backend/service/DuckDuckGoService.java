@@ -62,7 +62,10 @@ public class DuckDuckGoService {
 
         for (Map<String, String> retailer : GHANA_RETAILERS) {
             String rName = retailer.get("name");
-            seen.add(rName.toLowerCase());
+            // Seed with the domain, not the display name — a dynamic search hit is checked
+            // against its host below, so "Jumia Ghana" (this list) and "jumia.com.gh" (a live
+            // hit on the same domain) need to collide on the same key or both get added.
+            seen.add(retailer.get("site"));
             sellers.add(new GeminiService.ResearchSeller(
                 rName,
                 buildGoogleSearchUrl(name, rName),

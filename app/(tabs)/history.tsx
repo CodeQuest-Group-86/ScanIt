@@ -161,9 +161,13 @@ function ScanCard({
 
         {/* Price + authenticity */}
         <View style={styles.metaRow}>
-          <Text style={styles.price}>
-            {formatPrice(product.price, product.currency)}
-          </Text>
+          {product.price > 0 ? (
+            <Text style={styles.price}>
+              {formatPrice(product.price, product.currency)}
+            </Text>
+          ) : (
+            <Text style={styles.priceUnavailable}>Price unavailable</Text>
+          )}
         </View>
 
         {/* Best seller hotline */}
@@ -288,6 +292,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.extrabold,
     color: Colors.primary,
+  },
+  priceUnavailable: {
+    fontSize: Typography.sizes.sm,
+    fontStyle: "italic",
+    color: Colors.textSecondary,
   },
   sellerRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   sellerName: {

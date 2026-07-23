@@ -1,3 +1,56 @@
+# Update — Real Google-Grounded Pricing, Deduped Sellers, Real Contacts (2026-07-23)
+
+The "GHS 0.00" price bug and duplicate-seller bug were both traced to their
+actual root causes this round (earlier fixes addressed the encoding layer and
+a Jumia-first override, which were real bugs but not *the* bug).
+
+**Root cause of GHS 0.00:** `ScanService.analyzeImage` and `findByBarcode`
+only ever called `GeminiService.researchFromSnippets` — a text-only method
+with no web access, working purely off whatever DuckDuckGo snippets happened
+to come back. `GeminiService.researchProduct`, which uses Gemini's Google
+Search grounding tool to actually look up live prices, existed but was never
+invoked. Fixed: both paths now call `researchProduct(name, brand, category)`
+first; DuckDuckGo search is now a fallback/supplement (used to fill in
+snippets only when grounded research comes back empty, and to merge in any
+extra sellers it finds), not the primary source.
+
+**Root cause of duplicate sellers:** `DuckDuckGoService`'s `seen` dedup set
+was seeded with retailer *display names* ("Jumia Ghana") but checked against
+live search hits' *domains* ("jumia.com.gh") — the two never matched, so the
+same store could appear twice (once as the static entry, once as a "new" hit).
+Fixed by seeding `seen` with the domain instead. `ScanService`'s merge of
+DuckDuckGo sellers into Gemini's grounded-research seller list also
+case-insensitively dedupes by name now.
+
+**Standard price, not Jumia-specific:** Removed the earlier "Jumia is the
+standard" forcing logic. The Gemini research prompt no longer frames Jumia as
+a reference price; `priceTypical` is now a representative price across
+whichever real stores actually have a listing. When Gemini's own typical-price
+figure comes back empty but individual seller prices don't, the lowest real
+(non-zero) seller price is used as the fallback — store-agnostic.
+
+**Real contacts:** `ResearchSeller` gained `phone`/`whatsapp` fields (with a
+backward-compatible 4-arg constructor for existing callers). The Gemini
+research prompt now asks for these explicitly, with an anti-fabrication
+guardrail: never guess or construct a plausible-looking number — leave the
+field blank if no real number was found. `ScanService.toDto()` previously
+hardcoded seller phone/whatsapp to `""` regardless of what was found; it now
+passes the real values through, so the frontend's existing
+disable-if-missing logic actually has real data to work with.
+
+**Frontend "GHS 0.00" display:** Several screens (`explore.tsx`'s recent-scan
+card, `product-detail.tsx`, `history.tsx`, `recommendations.tsx`,
+`components/ProductCard.tsx`) rendered `formatPrice(0, ...)` as "GHS 0.00"
+whenever a price genuinely couldn't be found, instead of saying so. All five
+now show "Price unavailable" (italic, muted) when `price <= 0`, matching the
+pattern already used in `scan-result.tsx`.
+
+**Still pending (not in this round):** profile picture upload, and the
+location-based nearby-stores feature — both discussed but not yet started;
+the location feature needs a Google Places API key the user is obtaining.
+
+---
+
 # Update — Price Alerts, Offline Barcode Cache, Community Counterfeit Reporting (2026-07-23)
 
 Three features added on top of everything below: live price-drop notifications,

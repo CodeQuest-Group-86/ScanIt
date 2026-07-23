@@ -47,7 +47,14 @@ public class GeminiService {
     public record ProductInfo(String name, String brand, String category, String description,
                                int confidence, String authenticity) {}
 
-    public record ResearchSeller(String name, String url, String location, double price) {}
+    public record ResearchSeller(String name, String url, String location, double price,
+                                  String phone, String whatsapp) {
+        /** Convenience constructor for callers that don't have contact info (DDG hits,
+         *  CompuGhana's own API response — neither exposes a phone number). */
+        public ResearchSeller(String name, String url, String location, double price) {
+            this(name, url, location, price, "", "");
+        }
+    }
 
     public record ProductResearch(
         Map<String, String> specs,
@@ -251,8 +258,16 @@ public class GeminiService {
 
         String prompt =
             "Search for the current retail price and full product specs of \"" + name + "\" by \"" + brand + "\" (" + category + ") in Ghana (GHS). " +
-            "Search Jumia Ghana (jumia.com.gh) FIRST and specifically — it is the standard reference price for this app. " +
-            "Also search Tonaton Ghana, Kikuu Ghana, CompuGhana, Franko Trading, and local Ghanaian markets (Accra, Kumasi, Tamale).\n\n" +
+            "Search multiple major Ghanaian retailers — Jumia Ghana (jumia.com.gh), Kikuu Ghana, Tonaton Ghana, " +
+            "CompuGhana, Franko Trading — and local Ghanaian markets (Accra, Kumasi, Tamale). Don't rely on just one " +
+            "store: priceGhsTypical should be a representative price across whichever of these actually have a real " +
+            "listing, not automatically whichever store happens to be searched first.\n\n" +
+            "Also try to find each seller's real, publicly-listed customer service phone number and/or WhatsApp " +
+            "number (from their official website, Google Business listing, or verified social media) so a user can " +
+            "actually contact them. This is important, but accuracy matters more than completeness here: only include " +
+            "a number if you are confident it is genuinely published for that seller. Never guess, infer, or " +
+            "construct a plausible-looking number — leave phone/whatsapp as empty strings if you didn't find one " +
+            "explicitly, rather than provide something that might be wrong.\n\n" +
             "After searching, respond with ONLY the following JSON — no markdown, no explanation, just the JSON:\n" +
             "{\n" +
             "  \"specs\": {\n" +
@@ -263,20 +278,20 @@ public class GeminiService {
             "  },\n" +
             "  \"priceGhsMin\": <lowest price found as a number>,\n" +
             "  \"priceGhsMax\": <highest price found as a number>,\n" +
-            "  \"priceGhsTypical\": <the Jumia Ghana price if you found one — that is the standard price this app shows. " +
-            "Only fall back to the typical/most-common price across other sellers if Jumia genuinely has no listing>,\n" +
+            "  \"priceGhsTypical\": <a representative price across the real listings you found — not tied to one specific store>,\n" +
             "  \"sellers\": [\n" +
-            "    {\"name\": \"<seller name>\", \"url\": \"<direct product URL or search URL>\", \"location\": \"<Online · Platform or City · Market>\", \"price\": <price as a number>}\n" +
+            "    {\"name\": \"<seller name>\", \"url\": \"<direct product URL or search URL>\", \"location\": \"<Online · Platform or City · Market>\", \"price\": <price as a number>, \"phone\": \"<intl format e.g. +233... or empty string>\", \"whatsapp\": \"<intl format or empty string>\"}\n" +
             "  ]\n" +
             "}\n\n" +
             "Requirements:\n" +
             "- Include every seller you found with real prices in GHS\n" +
-            "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>}\n" +
-            "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>}\n" +
-            "- Always include: {\"name\":\"Tonaton Ghana\",\"url\":\"https://tonaton.com/en_GH/search?q=" + encodedName + "\",\"location\":\"Online · Classifieds\",\"price\":<real price found, or 0>}\n" +
+            "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+            "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+            "- Always include: {\"name\":\"Tonaton Ghana\",\"url\":\"https://tonaton.com/en_GH/search?q=" + encodedName + "\",\"location\":\"Online · Classifieds\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
             "- specs: include EVERY spec you can find — 6-15 attributes minimum\n" +
             "- All price values must be plain numbers (no currency symbols)\n" +
-            "- Only set a seller's price to 0 if you genuinely could not find one after searching — do not default to 0 out of caution";
+            "- Only set a seller's price to 0 if you genuinely could not find one after searching — do not default to 0 out of caution\n" +
+            "- phone/whatsapp: empty string is the correct, expected answer most of the time — only fill these in when genuinely confident";
 
         Map<String, Object> reqMap = new HashMap<>();
         reqMap.put("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))));
@@ -498,7 +513,9 @@ public class GeminiService {
                             sellerName,
                             s.path("url").asText("").trim(),
                             s.path("location").asText("Ghana").trim(),
-                            s.path("price").asDouble(0)
+                            s.path("price").asDouble(0),
+                            s.path("phone").asText("").trim(),
+                            s.path("whatsapp").asText("").trim()
                         ));
                     }
                 }

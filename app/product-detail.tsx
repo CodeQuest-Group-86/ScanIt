@@ -69,7 +69,11 @@ export default function ProductDetailScreen() {
           </View>
 
           <View style={styles.priceRow}>
-            <Text style={styles.price}>{formatPrice(selectedProduct.price, selectedProduct.currency)}</Text>
+            {selectedProduct.price > 0 ? (
+              <Text style={styles.price}>{formatPrice(selectedProduct.price, selectedProduct.currency)}</Text>
+            ) : (
+              <Text style={styles.priceUnavailable}>Price unavailable</Text>
+            )}
             <Text style={styles.sellerCount}>from {selectedProduct.sellers.length} {selectedProduct.sellers.length === 1 ? 'seller' : 'sellers'}</Text>
           </View>
 
@@ -162,6 +166,7 @@ const styles = StyleSheet.create({
   name: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.text, marginTop: 2 },
   priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: Spacing.md },
   price: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.primary },
+  priceUnavailable: { fontSize: Typography.sizes.md, fontStyle: 'italic', color: Colors.textSecondary },
   sellerCount: { fontSize: Typography.sizes.sm, color: Colors.textSecondary },
   description: { fontSize: Typography.sizes.md, color: Colors.textSecondary, lineHeight: 22 },
   section: { paddingHorizontal: Spacing.lg, marginBottom: Spacing.xl },

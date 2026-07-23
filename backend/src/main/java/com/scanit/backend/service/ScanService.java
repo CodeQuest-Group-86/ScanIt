@@ -93,12 +93,27 @@ public class ScanService {
         MatchResult match = findOrCreateProduct(gemini);
         Product matched = match.product();
 
-        // Step 2: DuckDuckGo — find where to buy + Google Search links
-        DuckDuckGoService.ProductSearch ddgSearch = null;
+        // Step 2: Gemini with real-time Google Search grounding — the only path that can
+        // actually surface a live Jumia Ghana price (Jumia returns 403 to direct server-side
+        // scraping — see CompuGhanaService's comment on the same issue). This method's prompt
+        // already prioritizes Jumia, but nothing was calling it: analyzeImage only ever called
+        // researchFromSnippets below, which has no search grounding and never asks for Jumia
+        // specifically, and depends on a DuckDuckGo snippet happening to contain a literal
+        // "GHS 123" — rare. That's why priceTypical kept coming back 0 regardless of prompt
+        // wording. Fixed here by actually invoking the grounded method first.
         GeminiService.ProductResearch research = null;
         try {
+            research = geminiService.researchProduct(gemini.name(), gemini.brand(), gemini.category());
+        } catch (Exception e) {
+            log.warn("Gemini grounded research failed: {}", e.getMessage());
+        }
+
+        // Step 2.5: DuckDuckGo — supplementary sellers/snippets, and the fallback research
+        // path when grounded search above returned nothing usable.
+        DuckDuckGoService.ProductSearch ddgSearch = null;
+        try {
             ddgSearch = duckDuckGoService.searchProduct(gemini.name(), gemini.brand(), gemini.category());
-            if (!ddgSearch.snippets().isEmpty()) {
+            if (research == null && !ddgSearch.snippets().isEmpty()) {
                 research = geminiService.researchFromSnippets(gemini, ddgSearch.snippets());
             }
             if (research == null && ddgSearch.detectedPrice() > 0) {
@@ -107,13 +122,15 @@ public class ScanService {
                     ddgSearch.sellers()
                 );
             } else if (research != null && ddgSearch.sellers() != null) {
-                // Merge DDG sellers (with Google URLs) into research
-                List<GeminiService.ResearchSeller> merged = new ArrayList<>(ddgSearch.sellers());
-                if (research.sellers() != null) {
-                    for (GeminiService.ResearchSeller s : research.sellers()) {
-                        if (merged.stream().noneMatch(m -> m.name().equalsIgnoreCase(s.name()))) {
-                            merged.add(s);
-                        }
+                // Research's own sellers (from grounded search) take priority — only add a
+                // DDG seller if one under (roughly) the same name isn't already present, so a
+                // real Jumia price from grounded search can't be duplicated or shadowed by a
+                // zero-price DDG placeholder of the same store.
+                List<GeminiService.ResearchSeller> merged = new ArrayList<>(
+                    research.sellers() != null ? research.sellers() : List.of());
+                for (GeminiService.ResearchSeller s : ddgSearch.sellers()) {
+                    if (merged.stream().noneMatch(m -> m.name().equalsIgnoreCase(s.name()))) {
+                        merged.add(s);
                     }
                 }
                 research = new GeminiService.ProductResearch(
@@ -123,7 +140,7 @@ public class ScanService {
                 );
             }
         } catch (Exception e) {
-            log.warn("DuckDuckGo product search failed, returning basic data: {}", e.getMessage());
+            log.warn("DuckDuckGo product search failed: {}", e.getMessage());
         }
 
         // Step 2.5: CompuGhana — a real live price, not a search-snippet guess. Replaces
@@ -159,21 +176,19 @@ public class ScanService {
             log.warn("CompuGhana enrichment failed: {}", e.getMessage());
         }
 
-        // Jumia Ghana is the standard reference price for this app — if Gemini's grounded
-        // search found a real Jumia price, that takes priority over CompuGhana or the
-        // generic typical price computed above.
-        if (research != null && research.sellers() != null) {
-            double jumiaPrice = 0;
-            for (GeminiService.ResearchSeller s : research.sellers()) {
-                if ("jumia ghana".equalsIgnoreCase(s.name()) && s.price() > 0) {
-                    jumiaPrice = s.price();
-                    break;
-                }
-            }
-            if (jumiaPrice > 0) {
+        // Standard price fallback — not tied to any one store. If priceTypical still came
+        // back 0 (grounded research found sellers but didn't compute an overall typical),
+        // fall back to the lowest real price actually found across every seller.
+        if (research != null && research.priceTypical() <= 0 && research.sellers() != null) {
+            double lowestRealPrice = research.sellers().stream()
+                    .mapToDouble(GeminiService.ResearchSeller::price)
+                    .filter(p -> p > 0)
+                    .min()
+                    .orElse(0);
+            if (lowestRealPrice > 0) {
                 research = new GeminiService.ProductResearch(
                         research.specs(), research.priceMin(), research.priceMax(),
-                        jumiaPrice, research.sellers()
+                        lowestRealPrice, research.sellers()
                 );
             }
         }
@@ -238,12 +253,18 @@ public class ScanService {
             log.info("Barcode {} not in local DB — querying Open Food Facts", barcode);
             product = fetchFromOpenFoodFacts(barcode);
 
-            // 3. DuckDuckGo search for live prices/sellers
+            // 3. Gemini grounded search first (same reasoning as analyzeImage — this is the
+            // only path that can surface a real Jumia price), DuckDuckGo as fallback/extra sellers.
             DuckDuckGoService.ProductSearch ddgSearch = null;
             GeminiService.ProductResearch research = null;
             try {
+                research = geminiService.researchProduct(product.getName(), product.getBrand(), product.getCategory());
+            } catch (Exception e) {
+                log.warn("Gemini grounded research failed for barcode product: {}", e.getMessage());
+            }
+            try {
                 ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
-                if (!ddgSearch.snippets().isEmpty()) {
+                if (research == null && !ddgSearch.snippets().isEmpty()) {
                     research = geminiService.researchFromSnippets(
                         new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null),
                         ddgSearch.snippets()
@@ -256,7 +277,7 @@ public class ScanService {
                 }
                 productRepository.save(product);
             } catch (Exception e) {
-                log.warn("Research failed for barcode product: {}", e.getMessage());
+                log.warn("DuckDuckGo search failed for barcode product: {}", e.getMessage());
                 productRepository.save(product);
             }
 
@@ -448,8 +469,8 @@ public class ScanService {
                             .name(s.name())
                             .location(s.location())
                             .distance("N/A")
-                            .phone("")
-                            .whatsapp("")
+                            .phone(s.phone() != null ? s.phone() : "")
+                            .whatsapp(s.whatsapp() != null ? s.whatsapp() : "")
                             .url(s.url() != null && !s.url().isBlank() ? s.url() : null)
                             .verified(true)
                             .rating(0.0)
