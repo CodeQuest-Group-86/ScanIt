@@ -12,11 +12,32 @@ import * as SecureStore from 'expo-secure-store';
 
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
 
+/**
+ * Render's free tier suspends the backend after ~15 min idle; the first request after
+ * that can take 30-50s to wake it back up. Give requests real headroom instead of
+ * failing fast and showing "Network request failed" for what is actually just a cold start.
+ */
+const REQUEST_TIMEOUT_MS = 45000;
+
+function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 /** Ping the health endpoint to wake a sleeping Render instance before the user hits sign-in. */
 export async function warmUpBackend(): Promise<void> {
   try {
-    await fetch(`${API_URL}/actuator/health`, { method: 'GET' });
+    await fetchWithTimeout(`${API_URL}/actuator/health`, { method: 'GET' }, REQUEST_TIMEOUT_MS);
   } catch { /* ignore — best effort */ }
+}
+
+/** Turns raw fetch/timeout failures into a message a user can actually act on. */
+function friendlyNetworkError(err: unknown): Error {
+  if (err instanceof Error && err.name === 'AbortError') {
+    return new Error('The server is taking too long to respond. It may be waking up from sleep — please try again in a moment.');
+  }
+  return new Error("Can't reach the ScanIt server. Check your internet connection and try again.");
 }
 
 const ACCESS_TOKEN_KEY = 'scanit_access_token';
@@ -79,20 +100,29 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   const doFetch = (token?: string) =>
-    fetch(`${API_URL}${path}`, {
+    fetchWithTimeout(`${API_URL}${path}`, {
       ...fetchOptions,
       headers: token
         ? { ...headers, Authorization: `Bearer ${token}` }
         : headers,
     });
 
-  let response = await doFetch();
+  let response: Response;
+  try {
+    response = await doFetch();
+  } catch (err) {
+    throw friendlyNetworkError(err);
+  }
 
   // Auto-refresh on 401
   if (response.status === 401 && !skipAuth) {
     const newToken = await doRefresh();
     if (newToken) {
-      response = await doFetch(newToken);
+      try {
+        response = await doFetch(newToken);
+      } catch (err) {
+        throw friendlyNetworkError(err);
+      }
     }
   }
 

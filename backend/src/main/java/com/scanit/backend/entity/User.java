@@ -44,6 +44,12 @@ public class User implements UserDetails {
     @Builder.Default
     private int scansCount = 0;
 
+    /** Scans used in the current free/paid quota period — resets when a new subscription
+     *  activates. Distinct from scansCount, which is a lifetime stat shown on the profile. */
+    @Column(nullable = false)
+    @Builder.Default
+    private int quotaScansUsed = 0;
+
     @Column(nullable = false)
     @Builder.Default
     private int savedCount = 0;
@@ -66,6 +72,20 @@ public class User implements UserDetails {
     /** "signup" or "reset-password" */
     private String otpPurpose;
     private String phoneNumber;
+
+    /** Expo push token — set via POST /users/push-token once the app has notification
+     *  permission. Null means the device isn't registered for push. */
+    private String pushToken;
+
+    // ── Subscription fields ──────────────────────────────────────────────────
+
+    /** "premium_monthly" or "premium_yearly" — null when never subscribed. */
+    private String subscriptionPlan;
+    @Builder.Default
+    private boolean subscriptionActive = false;
+    private Instant subscriptionExpiresAt;
+    /** Last Paystack transaction reference that activated the subscription (idempotency guard). */
+    private String lastPaymentReference;
 
     // ── UserDetails contract ──────────────────────────────────────────────────
 

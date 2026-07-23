@@ -43,7 +43,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 240,
           "resizeMode": "contain",
           "backgroundColor": "#E76F2E",
           "dark": {
@@ -64,7 +64,13 @@
           "photosPermission": "ScanIt needs photo library access to pick product images."
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "color": "#E76F2E"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

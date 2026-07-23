@@ -162,11 +162,13 @@ EXPO_PUBLIC_API_URL=https://your-backend-url.com/api/v1
 ### "Network request failed" Error
 
 This usually means:
+
 1. Backend is not running
 2. Wrong API URL in `.env.local`
 3. Device can't reach your computer (check WiFi)
 
 **Solution:**
+
 - Verify backend is running: `curl http://localhost:8080/api/v1/actuator/health`
 - Check `.env.local` API_URL matches your setup
 - Ensure device and computer are on same WiFi
@@ -208,6 +210,7 @@ Role: Seller
 ## Architecture Overview
 
 ### Frontend (React Native + Expo)
+
 - **Framework:** Expo SDK 54 with Expo Router
 - **State:** Zustand
 - **Styling:** Custom theme with liquid glass design
@@ -215,6 +218,7 @@ Role: Seller
 - **Payment:** Paystack integration
 
 ### Backend (Spring Boot)
+
 - **Framework:** Spring Boot 3.x
 - **Database:** H2 (dev) / PostgreSQL (prod)
 - **Auth:** JWT with refresh tokens
@@ -237,6 +241,7 @@ The frontend supports hot reload. Changes to `.env.local` require restarting the
 ### Backend Debugging
 
 Backend runs on port 8080. Access H2 console at:
+
 ```
 http://localhost:8080/api/v1/h2-console
 ```
@@ -269,6 +274,7 @@ eas build -p android --profile preview
 ## Support
 
 For issues:
+
 1. Check this guide's troubleshooting section
 2. Review backend logs
 3. Verify all environment variables are set

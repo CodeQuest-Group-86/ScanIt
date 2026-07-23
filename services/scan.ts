@@ -98,6 +98,11 @@ export const scanService = {
       if (msg.includes('401') || msg.includes('403')) {
         return { success: false, message: 'auth_required' } as any;
       }
+      // Server-side quota block — don't fall through to the on-device fallback,
+      // since that would let a bypassed client scan for free via its own Gemini key.
+      if (msg.includes('429')) {
+        return { success: false, message: 'quota_exceeded' } as any;
+      }
     }
 
     // 2. Fallback: Gemini Vision + DuckDuckGo on device
@@ -123,6 +128,9 @@ export const scanService = {
       const msg: string = err?.message ?? '';
       if (msg.includes('401') || msg.includes('403')) {
         return { success: false, message: 'auth_required' } as any;
+      }
+      if (msg.includes('429')) {
+        return { success: false, message: 'quota_exceeded' } as any;
       }
       throw err;
     }

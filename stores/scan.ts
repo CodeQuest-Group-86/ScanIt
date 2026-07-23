@@ -119,6 +119,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
       clearTimeout(stageTimer);
 
       if (!res.success || !res.data) {
+        if (res.message === 'quota_exceeded') {
+          set({ isAnalyzing: false, analyzingStage: null, showPaywall: true });
+          return;
+        }
         set({
           isAnalyzing: false,
           analyzingStage: null,
@@ -164,6 +168,10 @@ export const useScanStore = create<ScanState>((set, get) => ({
     try {
       const res = await scanService.scanBarcode(code);
       if (!res.success || !res.data) {
+        if (res.message === 'quota_exceeded') {
+          set({ isAnalyzing: false, analyzingStage: null, showPaywall: true });
+          return;
+        }
         set({ isAnalyzing: false, analyzingStage: null, error: 'Product not found in database.' });
         return;
       }

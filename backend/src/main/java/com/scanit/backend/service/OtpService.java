@@ -37,6 +37,12 @@ public class OtpService {
 
     private static final int OTP_TTL_SECONDS = 600; // 10 minutes
 
+    /** Explicit timeout — without one, OkHttp's defaults can let a slow/stuck Resend
+     *  call hang well past the client's own request timeout instead of failing fast. */
+    private final OkHttpClient resendClient = new OkHttpClient.Builder()
+            .callTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .build();
+
     public OtpService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -187,7 +193,6 @@ public class OtpService {
                 "<p>Your ScanIt code is: <strong style='font-size:24px'>%s</strong></p>" +
                 "<p>Valid for 10 minutes. Do not share it.</p>", code);
 
-        OkHttpClient client = new OkHttpClient();
         String json = String.format(
                 "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
                 resendFrom, email, subject, body.replace("\"", "\\\""));
@@ -199,7 +204,7 @@ public class OtpService {
                 .post(RequestBody.create(json, MediaType.get("application/json")))
                 .build();
 
-        try (Response response = client.newCall(request).execute()) {
+        try (Response response = resendClient.newCall(request).execute()) {
             if (!response.isSuccessful()) {
                 String resendBody = response.body() != null ? response.body().string() : "(no body)";
                 log.error("Resend failed ({}) from='{}': {}", response.code(), resendFrom, resendBody);

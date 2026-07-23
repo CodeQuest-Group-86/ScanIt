@@ -50,3 +50,9 @@ twilio:
 resend:
   api-key: ${RESEND_API_KEY:}
   from: ${RESEND_FROM:ScanIt <onboarding@resend.dev>}
+
+# ── Paystack — subscription payments ───────────────────────────────────────────
+# Only the SECRET key lives on the backend — it's what verifies transactions server-side.
+# The PUBLIC key goes in the app's EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY instead (safe to ship).
+paystack:
+  secret-key: ${PAYSTACK_SECRET_KEY:}

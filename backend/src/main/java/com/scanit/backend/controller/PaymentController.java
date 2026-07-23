@@ -1,12 +1,11 @@
 package com.scanit.backend.controller;
 
 import com.scanit.backend.dto.ApiResponse;
-import com.scanit.backend.dto.PaymentInitResponse;
-import com.scanit.backend.dto.PaymentVerifyResponse;
-import com.scanit.backend.entity.User;
-import com.scanit.backend.service.PaystackService;
+import com.scanit.backend.dto.payment.SubscriptionStatusDto;
+import com.scanit.backend.dto.payment.VerifyPaymentRequest;
+import com.scanit.backend.service.PaymentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -16,28 +15,26 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class PaymentController {
 
-    private final PaystackService paystackService;
+    private final PaymentService paymentService;
 
-    @PostMapping("/initialize")
-    public ResponseEntity<ApiResponse<PaymentInitResponse>> initialize(
-            @RequestParam String plan,
-            @RequestParam(required = false, defaultValue = "20") double amount,
-            Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
-        PaymentInitResponse resp = paystackService.initializeTransaction(user.getEmail(), plan, amount);
-        return ResponseEntity.ok(ApiResponse.success("Payment initialized", resp));
+    /** Verifies a completed Paystack transaction server-side and activates the subscription. */
+    @PostMapping("/verify")
+    public ResponseEntity<ApiResponse<SubscriptionStatusDto>> verify(
+            @Valid @RequestBody VerifyPaymentRequest request,
+            Authentication authentication
+    ) {
+        SubscriptionStatusDto status = paymentService.verifyAndActivate(authentication.getName(), request);
+        return ResponseEntity.ok(ApiResponse.success("Subscription activated", status));
     }
 
-    @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<PaymentVerifyResponse>> verify(@RequestParam String reference) {
-        PaymentVerifyResponse resp = paystackService.verifyTransaction(reference);
-        return ResponseEntity.ok(ApiResponse.success("Payment verified", resp));
+    @GetMapping("/subscription")
+    public ResponseEntity<ApiResponse<SubscriptionStatusDto>> subscription(Authentication authentication) {
+        return ResponseEntity.ok(ApiResponse.success(paymentService.getStatus(authentication.getName())));
     }
 
-    @PostMapping("/webhook")
-    public ResponseEntity<ApiResponse<Void>> webhook(@RequestBody String payload) {
-        // Paystack sends event notifications here. For now we log them.
-        // In production, parse the event and activate premium based on charge.success.
-        return ResponseEntity.ok(ApiResponse.success("Webhook received", null));
+    @PostMapping("/cancel-subscription")
+    public ResponseEntity<ApiResponse<Void>> cancel(Authentication authentication) {
+        paymentService.cancel(authentication.getName());
+        return ResponseEntity.ok(ApiResponse.success("Subscription cancelled", null));
     }
 }

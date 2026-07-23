@@ -9,6 +9,7 @@ import com.scanit.backend.entity.Product;
 import com.scanit.backend.entity.ScanResult;
 import com.scanit.backend.entity.User;
 import com.scanit.backend.exception.ResourceNotFoundException;
+import com.scanit.backend.exception.ScanQuotaExceededException;
 import com.scanit.backend.repository.ProductRepository;
 import com.scanit.backend.repository.ScanResultRepository;
 import com.scanit.backend.repository.UserRepository;
@@ -40,16 +41,41 @@ public class ScanService {
     private final ProductService productService;
     private final GeminiService geminiService;
     private final DuckDuckGoService duckDuckGoService;
+    private final CompuGhanaService compuGhanaService;
+
+    /** Must stay in sync with PAYSTACK_PLANS in services/payment.ts. -1 = unlimited. */
+    private static final int FREE_SCAN_LIMIT = 3;
+    private static final java.util.Map<String, Integer> PLAN_SCAN_LIMITS = java.util.Map.of(
+        "premium_monthly", 25,
+        "premium_yearly", -1
+    );
+
+    /** Server-side quota check — the client also tracks this locally, but that's trivially
+     *  bypassed by clearing app storage, so this is the authoritative gate. */
+    private void enforceQuota(User user) {
+        int limit = FREE_SCAN_LIMIT;
+        if (user.isSubscriptionActive() && user.getSubscriptionExpiresAt() != null
+                && Instant.now().isBefore(user.getSubscriptionExpiresAt())) {
+            limit = PLAN_SCAN_LIMITS.getOrDefault(user.getSubscriptionPlan(), FREE_SCAN_LIMIT);
+        }
+        if (limit != -1 && user.getQuotaScansUsed() >= limit) {
+            throw new ScanQuotaExceededException(
+                "You've used all " + limit + " scans for this period. Upgrade or wait for renewal to keep scanning."
+            );
+        }
+    }
 
     // ── Analyze image ─────────────────────────────────────────────────────────
 
     @Transactional
     public ScanResultDto analyzeImage(String userEmail, byte[] imageBytes, String mimeType) {
         User user = findUser(userEmail);
+        enforceQuota(user);
 
         // Step 1: Vision — identify the product
         GeminiService.ProductInfo gemini = geminiService.identifyProduct(imageBytes, mimeType);
-        Product matched = findOrCreateProduct(gemini);
+        MatchResult match = findOrCreateProduct(gemini);
+        Product matched = match.product();
 
         // Step 2: DuckDuckGo — find where to buy + Google Search links
         DuckDuckGoService.ProductSearch ddgSearch = null;
@@ -84,6 +110,39 @@ public class ScanService {
             log.warn("DuckDuckGo product search failed, returning basic data: {}", e.getMessage());
         }
 
+        // Step 2.5: CompuGhana — a real live price, not a search-snippet guess. Replaces
+        // the generic CompuGhana entry DuckDuckGoService adds for every product.
+        try {
+            List<CompuGhanaService.Listing> compuGhanaResults = compuGhanaService.search(gemini.name());
+            if (!compuGhanaResults.isEmpty()) {
+                CompuGhanaService.Listing best = compuGhanaResults.get(0);
+                GeminiService.ResearchSeller realSeller = new GeminiService.ResearchSeller(
+                    "CompuGhana", best.url(), "Online · Electronics", best.price()
+                );
+                List<GeminiService.ResearchSeller> existing = research != null && research.sellers() != null
+                        ? research.sellers() : List.of();
+                List<GeminiService.ResearchSeller> merged = new ArrayList<>();
+                for (GeminiService.ResearchSeller s : existing) {
+                    if (!"compughana".equalsIgnoreCase(s.name().replace(" ", ""))) {
+                        merged.add(s);
+                    }
+                }
+                merged.add(realSeller);
+
+                double priceTypical = research != null && research.priceTypical() > 0
+                        ? research.priceTypical() : best.price();
+                research = new GeminiService.ProductResearch(
+                        research != null ? research.specs() : Map.of(),
+                        research != null ? research.priceMin() : 0,
+                        research != null ? research.priceMax() : 0,
+                        priceTypical,
+                        merged
+                );
+            }
+        } catch (Exception e) {
+            log.warn("CompuGhana enrichment failed: {}", e.getMessage());
+        }
+
         // Persist updated specs/price to the product record
         if (research != null) {
             if (research.specs() != null && !research.specs().isEmpty()) {
@@ -95,19 +154,25 @@ public class ScanService {
             productRepository.save(matched);
         }
 
-        double confidence = 92.0;
+        double confidence = gemini.confidence() > 0
+                ? gemini.confidence()
+                : (match.isNew() ? 78.0 : 90.0);
+
+        com.scanit.backend.enums.AuthenticityStatus scanAuthenticity =
+                parseAuthenticity(gemini.authenticity(), matched.getAuthenticity());
 
         ScanResult saved = scanResultRepository.save(
                 ScanResult.builder()
                         .user(user)
                         .product(matched)
                         .confidence(confidence)
-                        .authenticityStatus(matched.getAuthenticity())
+                        .authenticityStatus(scanAuthenticity)
                         .imageUri("upload")
                         .build()
         );
 
         user.setScansCount(user.getScansCount() + 1);
+        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
         userRepository.save(user);
 
         log.debug("Scan complete — user={} product={} confidence={}", userEmail, matched.getName(), confidence);
@@ -119,6 +184,7 @@ public class ScanService {
     @Transactional
     public ScanResultDto findByBarcode(String userEmail, String barcode) {
         User user = findUser(userEmail);
+        enforceQuota(user);
 
         // 1. Check local DB first
         List<Product> products = productRepository.findByBarcode(barcode);
@@ -139,7 +205,7 @@ public class ScanService {
                 ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
                 if (!ddgSearch.snippets().isEmpty()) {
                     research = geminiService.researchFromSnippets(
-                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription()),
+                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null),
                         ddgSearch.snippets()
                     );
                 }
@@ -164,6 +230,7 @@ public class ScanService {
                             .build()
             );
             user.setScansCount(user.getScansCount() + 1);
+        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
             userRepository.save(user);
             log.debug("Barcode via OFF — user={} barcode={} product={}", userEmail, barcode, product.getName());
             return toDto(saved, research, ddgSearch);
@@ -180,6 +247,7 @@ public class ScanService {
         );
 
         user.setScansCount(user.getScansCount() + 1);
+        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
         userRepository.save(user);
 
         log.debug("Barcode scan — user={} barcode={} product={}", userEmail, barcode, product.getName());
@@ -262,7 +330,9 @@ public class ScanService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private Product findOrCreateProduct(GeminiService.ProductInfo gemini) {
+    private record MatchResult(Product product, boolean isNew) {}
+
+    private MatchResult findOrCreateProduct(GeminiService.ProductInfo gemini) {
         if (gemini == null) {
             throw new com.scanit.backend.exception.InvalidObjectException(
                 "Could not identify a product in the image. Try a clearer shot."
@@ -277,7 +347,7 @@ public class ScanService {
                 .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(name, brand);
         if (!exact.isEmpty()) {
             log.debug("Gemini label '{}' matched existing product '{}'", name, exact.get(0).getName());
-            return exact.get(0);
+            return new MatchResult(exact.get(0), false);
         }
 
         // 2. Try individual words from the product name
@@ -287,14 +357,14 @@ public class ScanService {
                         .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(word, word);
                 if (!byWord.isEmpty()) {
                     log.debug("Word '{}' matched existing product '{}'", word, byWord.get(0).getName());
-                    return byWord.get(0);
+                    return new MatchResult(byWord.get(0), false);
                 }
             }
         }
 
         // 3. Auto-create with Gemini's description
         log.info("Auto-creating product from Gemini: '{}'", name);
-        return productRepository.save(Product.builder()
+        Product created = productRepository.save(Product.builder()
                 .name(name.substring(0, 1).toUpperCase() + name.substring(1))
                 .brand(brand)
                 .category(gemini.category())
@@ -303,8 +373,24 @@ public class ScanService {
                 .currency("GHS")
                 .origin("Ghana")
                 .verified(false)
-                .authenticity(com.scanit.backend.enums.AuthenticityStatus.AUTHENTIC)
+                .authenticity(parseAuthenticity(gemini.authenticity(), com.scanit.backend.enums.AuthenticityStatus.AUTHENTIC))
                 .build());
+        return new MatchResult(created, true);
+    }
+
+    /**
+     * Maps Gemini's per-scan authenticity read (from visible packaging) to the enum.
+     * Falls back to the product's existing stored value when Gemini didn't return one —
+     * a single photo shouldn't downgrade a long-established catalog product.
+     */
+    private com.scanit.backend.enums.AuthenticityStatus parseAuthenticity(
+            String raw, com.scanit.backend.enums.AuthenticityStatus fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return com.scanit.backend.enums.AuthenticityStatus.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return fallback;
+        }
     }
 
     // ── DTO mapping ───────────────────────────────────────────────────────────

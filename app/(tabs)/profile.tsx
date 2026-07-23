@@ -1,15 +1,15 @@
-import { productService } from '@/services/products';
-import { useAuthStore } from '@/stores/auth';
-import { useProductsStore } from '@/stores/products';
-import { Colors, Radii, Shadows, Spacing, Typography } from '@/theme';
-import type { InventoryItem } from '@/types';
-import { formatPrice, getInitials } from '@/utils/format';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import ScreenShell from '@/components/ui/ScreenShell';
-import TabScrollView from '@/components/ui/TabScrollView';
+import ScreenShell from "@/components/ui/ScreenShell";
+import TabScrollView from "@/components/ui/TabScrollView";
+import { productService } from "@/services/products";
+import { useAuthStore } from "@/stores/auth";
+import { useProductsStore } from "@/stores/products";
+import { Colors, Radii, Shadows, Spacing, Typography } from "@/theme";
+import type { InventoryItem } from "@/types";
+import { formatPrice, getInitials } from "@/utils/format";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { router } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface RowItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -26,27 +26,23 @@ export default function ProfileScreen() {
   const [loadingInventory, setLoadingInventory] = useState(false);
 
   const handleLogout = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            router.replace('/(auth)/sign-in');
-          },
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/(auth)/sign-in");
         },
-      ]
-    );
+      },
+    ]);
   };
 
   useEffect(() => {
-    if (!user || user.role !== 'seller') return;
+    if (!user || user.role !== "seller") return;
     setLoadingInventory(true);
-    productService.getInventory().then(res => {
+    productService.getInventory().then((res) => {
       if (res.success) setInventory(res.data);
       setLoadingInventory(false);
     });
@@ -55,20 +51,54 @@ export default function ProfileScreen() {
   if (!user) return null;
 
   const sellerTotalProducts = inventory.length;
-  const sellerActiveListings = inventory.filter(i => i.listed).length;
+  const sellerActiveListings = inventory.filter((i) => i.listed).length;
   const sellerTotalStock = inventory.reduce((s, i) => s + i.stock, 0);
 
   const consumerRows: RowItem[] = [
-    { icon: 'time-outline', label: 'Scan history', onPress: () => router.push('/scan-history') },
-    { icon: 'bookmark-outline', label: 'Saved products', onPress: () => router.push('/(tabs)/saved') },
-    { icon: 'notifications-outline', label: 'Notifications', onPress: () => router.push('/notifications'), badge: unreadNotificationsCount },
-    { icon: 'help-circle-outline', label: 'Help & support', onPress: () => router.push('/help') },
+    {
+      icon: "time-outline",
+      label: "Scan history",
+      onPress: () => router.push("/scan-history"),
+    },
+    {
+      icon: "bookmark-outline",
+      label: "Saved products",
+      onPress: () => router.push("/(tabs)/saved"),
+    },
+    {
+      icon: "notifications-outline",
+      label: "Notifications",
+      onPress: () => router.push("/notifications"),
+      badge: unreadNotificationsCount,
+    },
+    {
+      icon: "help-circle-outline",
+      label: "Help & support",
+      onPress: () => router.push("/help"),
+    },
+    {
+      icon: "card-outline",
+      label: "Subscription",
+      onPress: () => router.push("/subscribe"),
+    },
   ];
 
   const sellerRows: RowItem[] = [
-    { icon: 'cube-outline', label: 'Manage inventory', onPress: () => router.push('/seller-inventory') },
-    { icon: 'list-outline', label: 'My listings', onPress: () => router.push('/seller-inventory') },
-    { icon: 'add-circle-outline', label: 'Add product', onPress: () => router.push('/(tabs)/scan') },
+    {
+      icon: "cube-outline",
+      label: "Manage inventory",
+      onPress: () => router.push("/seller-inventory"),
+    },
+    {
+      icon: "list-outline",
+      label: "My listings",
+      onPress: () => router.push("/seller-inventory"),
+    },
+    {
+      icon: "add-circle-outline",
+      label: "Add product",
+      onPress: () => router.push("/(tabs)/scan"),
+    },
   ];
 
   return (
@@ -77,7 +107,10 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.pageTitle}>Profile</Text>
-          <TouchableOpacity onPress={() => router.push('/settings')} style={styles.settingsBtn}>
+          <TouchableOpacity
+            onPress={() => router.push("/settings")}
+            style={styles.settingsBtn}
+          >
             <Ionicons name="settings-outline" size={22} color={Colors.text} />
           </TouchableOpacity>
         </View>
@@ -90,28 +123,39 @@ export default function ProfileScreen() {
           <Text style={styles.userName}>{user.name}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
           <View style={styles.rolePill}>
-            <Text style={styles.roleText}>{user.role === 'seller' ? 'Seller' : 'Consumer'}</Text>
+            <Text style={styles.roleText}>
+              {user.role === "seller" ? "Seller" : "Consumer"}
+            </Text>
           </View>
-          <TouchableOpacity style={styles.editBtn} onPress={() => router.push('/edit-profile')}>
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => router.push("/edit-profile")}
+          >
             <Text style={styles.editBtnText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
-         {/* Stats */}
-        {user.role === 'seller' ? (
+        {/* Stats */}
+        {user.role === "seller" ? (
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{loadingInventory ? '...' : sellerTotalProducts}</Text>
+              <Text style={styles.statValue}>
+                {loadingInventory ? "..." : sellerTotalProducts}
+              </Text>
               <Text style={styles.statLabel}>Products</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{loadingInventory ? '...' : sellerActiveListings}</Text>
+              <Text style={styles.statValue}>
+                {loadingInventory ? "..." : sellerActiveListings}
+              </Text>
               <Text style={styles.statLabel}>Active</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{loadingInventory ? '...' : sellerTotalStock}</Text>
+              <Text style={styles.statValue}>
+                {loadingInventory ? "..." : sellerTotalStock}
+              </Text>
               <Text style={styles.statLabel}>In Stock</Text>
             </View>
           </View>
@@ -128,18 +172,24 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{formatPrice(user.totalSaved)}</Text>
+              <Text style={styles.statValue}>
+                {formatPrice(user.totalSaved)}
+              </Text>
               <Text style={styles.statLabel}>Total saved</Text>
             </View>
           </View>
         )}
 
         {/* Seller rows */}
-        {user.role === 'seller' && (
+        {user.role === "seller" && (
           <View style={[styles.card, styles.section]}>
             <Text style={styles.sectionLabel}>Seller Tools</Text>
             {sellerRows.map((row, i) => (
-              <RowButton key={row.label} item={row} last={i === sellerRows.length - 1} />
+              <RowButton
+                key={row.label}
+                item={row}
+                last={i === sellerRows.length - 1}
+              />
             ))}
           </View>
         )}
@@ -147,7 +197,11 @@ export default function ProfileScreen() {
         {/* Main rows */}
         <View style={[styles.card, styles.section]}>
           {consumerRows.map((row, i) => (
-            <RowButton key={row.label} item={row} last={i === consumerRows.length - 1} />
+            <RowButton
+              key={row.label}
+              item={row}
+              last={i === consumerRows.length - 1}
+            />
           ))}
         </View>
 
@@ -166,11 +220,18 @@ function RowButton({ item, last }: { item: RowItem; last: boolean }) {
     <TouchableOpacity
       style={[styles.row, !last && styles.rowBorder]}
       onPress={item.onPress}
-      activeOpacity={0.7}>
+      activeOpacity={0.7}
+    >
       <View style={styles.rowIcon}>
-        <Ionicons name={item.icon} size={20} color={item.danger ? Colors.danger : Colors.primary} />
+        <Ionicons
+          name={item.icon}
+          size={20}
+          color={item.danger ? Colors.danger : Colors.primary}
+        />
       </View>
-      <Text style={[styles.rowLabel, item.danger && styles.rowLabelDanger]}>{item.label}</Text>
+      <Text style={[styles.rowLabel, item.danger && styles.rowLabelDanger]}>
+        {item.label}
+      </Text>
       {item.badge ? (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{item.badge}</Text>
@@ -184,33 +245,146 @@ function RowButton({ item, last }: { item: RowItem; last: boolean }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.surface },
   scroll: { padding: Spacing.lg, flexGrow: 1 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xl },
-  pageTitle: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.extrabold, color: Colors.text },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xl,
+  },
+  pageTitle: {
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.extrabold,
+    color: Colors.text,
+  },
   settingsBtn: { padding: Spacing.sm },
-  avatarSection: { alignItems: 'center', marginBottom: Spacing.xl, gap: Spacing.sm },
-  avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm },
-  initials: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.bold, color: Colors.white },
-  userName: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.text },
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  initials: {
+    fontSize: Typography.sizes.xxl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.white,
+  },
+  userName: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.text,
+  },
   userEmail: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
-  rolePill: { backgroundColor: Colors.accent + '20', paddingHorizontal: Spacing.md, paddingVertical: 3, borderRadius: Radii.pill },
-  roleText: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.semibold },
-  editBtn: { borderWidth: 1.5, borderColor: Colors.primary, borderRadius: Radii.pill, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.xs + 2, marginTop: Spacing.xs },
-  editBtnText: { color: Colors.primary, fontSize: Typography.sizes.sm, fontWeight: Typography.weights.semibold },
-  statsRow: { flexDirection: 'row', backgroundColor: Colors.white, borderRadius: Radii.card, padding: Spacing.lg, marginBottom: Spacing.xl, ...Shadows.sm },
-  statItem: { flex: 1, alignItems: 'center', gap: 2 },
-  statValue: { fontSize: Typography.sizes.xl, fontWeight: Typography.weights.bold, color: Colors.primary },
-  statLabel: { fontSize: Typography.sizes.xs, color: Colors.textSecondary, fontWeight: Typography.weights.medium },
-  statDivider: { width: 1, backgroundColor: Colors.border, height: '100%' },
+  rolePill: {
+    backgroundColor: Colors.accent + "20",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 3,
+    borderRadius: Radii.pill,
+  },
+  roleText: {
+    fontSize: Typography.sizes.sm,
+    color: Colors.accent,
+    fontWeight: Typography.weights.semibold,
+  },
+  editBtn: {
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: Radii.pill,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.xs + 2,
+    marginTop: Spacing.xs,
+  },
+  editBtnText: {
+    color: Colors.primary,
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+  },
+  statsRow: {
+    flexDirection: "row",
+    backgroundColor: Colors.white,
+    borderRadius: Radii.card,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    ...Shadows.sm,
+  },
+  statItem: { flex: 1, alignItems: "center", gap: 2 },
+  statValue: {
+    fontSize: Typography.sizes.xl,
+    fontWeight: Typography.weights.bold,
+    color: Colors.primary,
+  },
+  statLabel: {
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    fontWeight: Typography.weights.medium,
+  },
+  statDivider: { width: 1, backgroundColor: Colors.border, height: "100%" },
   section: { marginBottom: Spacing.lg },
-  sectionLabel: { fontSize: Typography.sizes.sm, fontWeight: Typography.weights.bold, color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
-  card: { backgroundColor: Colors.white, borderRadius: Radii.card, overflow: 'hidden', ...Shadows.sm },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.md },
+  sectionLabel: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.bold,
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
+  },
+  card: {
+    backgroundColor: Colors.white,
+    borderRadius: Radii.card,
+    overflow: "hidden",
+    ...Shadows.sm,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
+  },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.surface },
-  rowIcon: { width: 36, height: 36, borderRadius: Radii.md, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
-  rowLabel: { flex: 1, fontSize: Typography.sizes.md, color: Colors.text, fontWeight: Typography.weights.medium },
+  rowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowLabel: {
+    flex: 1,
+    fontSize: Typography.sizes.md,
+    color: Colors.text,
+    fontWeight: Typography.weights.medium,
+  },
   rowLabelDanger: { color: Colors.danger },
-  badge: { backgroundColor: Colors.danger, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { color: Colors.white, fontSize: 11, fontWeight: '700' },
-  signOutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.lg },
-  signOutText: { fontSize: Typography.sizes.md, fontWeight: Typography.weights.semibold, color: Colors.danger },
+  badge: {
+    backgroundColor: Colors.danger,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: { color: Colors.white, fontSize: 11, fontWeight: "700" },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+  },
+  signOutText: {
+    fontSize: Typography.sizes.md,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.danger,
+  },
 });

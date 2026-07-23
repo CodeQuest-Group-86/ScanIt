@@ -44,7 +44,8 @@ public class GeminiService {
 
     // ── Public records ────────────────────────────────────────────────────────
 
-    public record ProductInfo(String name, String brand, String category, String description) {}
+    public record ProductInfo(String name, String brand, String category, String description,
+                               int confidence, String authenticity) {}
 
     public record ResearchSeller(String name, String url, String location, double price) {}
 
@@ -164,16 +165,8 @@ public class GeminiService {
                     return null;
                 }
                 JsonNode root = mapper.readTree(respBody);
-                JsonNode parts = root.path("candidates").get(0).path("content").path("parts");
-                String text = "";
-                if (parts.isArray()) {
-                    for (JsonNode part : parts) {
-                        if (!part.path("thought").asBoolean(false)) {
-                            String t = part.path("text").asText("").trim();
-                            if (!t.isEmpty()) { text = t; break; }
-                        }
-                    }
-                }
+                String text = firstCandidateText(root, "snippet research");
+                if (text == null || text.isEmpty()) return null;
                 return parseResearch(text);
             }
         } catch (Exception e) {
@@ -215,18 +208,40 @@ public class GeminiService {
             }
             JsonNode root = mapper.readTree(respBody);
             // Skip any thought parts — find the first non-thought text part
-            JsonNode parts = root.path("candidates").get(0).path("content").path("parts");
-            String text = "";
-            if (parts.isArray()) {
-                for (JsonNode part : parts) {
-                    if (!part.path("thought").asBoolean(false)) {
-                        String t = part.path("text").asText("").trim();
-                        if (!t.isEmpty()) { text = t; break; }
-                    }
-                }
-            }
+            String text = firstCandidateText(root, "vision");
+            if (text == null || text.isEmpty()) return null;
             return parseProductInfo(text);
         }
+    }
+
+    /**
+     * Gemini omits "candidates" entirely on safety/recitation blocks, so
+     * root.path("candidates").get(0) can be null — guard every access point
+     * instead of letting it NPE up to a 500.
+     */
+    private String firstCandidateText(JsonNode root, String context) {
+        JsonNode candidates = root.path("candidates");
+        JsonNode candidate = candidates.isArray() && candidates.size() > 0 ? candidates.get(0) : null;
+        if (candidate == null) {
+            String blockReason = root.path("promptFeedback").path("blockReason").asText("unknown");
+            log.warn("Gemini {} returned no candidates (blockReason={})", context, blockReason);
+            return null;
+        }
+        String finishReason = candidate.path("finishReason").asText("");
+        JsonNode parts = candidate.path("content").path("parts");
+        String text = "";
+        if (parts.isArray()) {
+            for (JsonNode part : parts) {
+                if (!part.path("thought").asBoolean(false)) {
+                    String t = part.path("text").asText("").trim();
+                    if (!t.isEmpty()) { text = t; break; }
+                }
+            }
+        }
+        if (text.isEmpty() && !finishReason.isEmpty() && !finishReason.equals("STOP")) {
+            log.warn("Gemini {} produced no text (finishReason={})", context, finishReason);
+        }
+        return text;
     }
 
     // ── Gemini Research (Google Search grounding — real live prices) ──────────
@@ -287,7 +302,14 @@ public class GeminiService {
             }
             JsonNode root = mapper.readTree(respBody);
             // Grounding may split response across multiple parts — concatenate all text parts
-            JsonNode parts = root.path("candidates").get(0).path("content").path("parts");
+            JsonNode candidates = root.path("candidates");
+            JsonNode candidate = candidates.isArray() && candidates.size() > 0 ? candidates.get(0) : null;
+            if (candidate == null) {
+                String blockReason = root.path("promptFeedback").path("blockReason").asText("unknown");
+                log.warn("Gemini research returned no candidates for '{}' (blockReason={})", name, blockReason);
+                return null;
+            }
+            JsonNode parts = candidate.path("content").path("parts");
             StringBuilder sb = new StringBuilder();
             if (parts.isArray()) {
                 for (JsonNode part : parts) {
@@ -296,6 +318,11 @@ public class GeminiService {
                 }
             }
             String text = sb.toString().trim();
+            if (text.isEmpty()) {
+                String finishReason = candidate.path("finishReason").asText("unknown");
+                log.warn("Gemini research produced no text for '{}' (finishReason={})", name, finishReason);
+                return null;
+            }
             log.debug("Grounded research for '{}': {}...", name, text.substring(0, Math.min(200, text.length())));
             return parseResearch(text);
         }
@@ -400,13 +427,23 @@ public class GeminiService {
         "You are a product identification AI. Look at this image carefully and identify what product or item is shown.\n\n" +
         "IMPORTANT: Be generous — identify ANY physical object: consumer goods, food, drinks, electronics, clothing, " +
         "household items, tools, stationery, cosmetics, medicine, etc. Even if the brand is unclear, identify the item type.\n\n" +
+        "Also assess two things from the image itself:\n" +
+        "1. confidence — how clearly and unambiguously you can identify this exact product (not a generic guess), as an integer 50-99.\n" +
+        "   Sharp, well-lit, clearly-branded packaging = 90-99. Partial/blurry/unusual angle = 65-85. Ambiguous or generic-looking = 50-64.\n" +
+        "2. authenticity — inspect packaging quality, print sharpness, logo accuracy, spelling, and material finish for counterfeit signs:\n" +
+        "   \"authentic\" — packaging looks consistent with the genuine brand, no red flags.\n" +
+        "   \"suspicious\" — some inconsistency (blurry print, off colors, misspelled text, generic packaging for a branded item).\n" +
+        "   \"counterfeit\" — clear counterfeit indicators (fake holograms, wrong logo, obviously copied packaging).\n" +
+        "   Default to \"authentic\" when there is nothing suspicious to point to — do not guess counterfeit without a concrete visual reason.\n\n" +
         "Respond with ONLY this JSON (no markdown, no explanation):\n" +
         "{\"name\":\"<specific product name, e.g. Coca-Cola 500ml, Samsung Galaxy A54, Indomie Instant Noodles>\",\n" +
         " \"brand\":\"<brand name or 'Unknown' if not visible>\",\n" +
         " \"category\":\"<Electronics|Clothing|Food|Drinks|Personal Care|Home|Stationery|Health|Tools|General>\",\n" +
-        " \"description\":\"<2-3 sentences describing what this product is and its main use>\"}\n\n" +
+        " \"description\":\"<2-3 sentences describing what this product is and its main use>\",\n" +
+        " \"confidence\":<integer 50-99>,\n" +
+        " \"authenticity\":\"<authentic|suspicious|counterfeit>\"}\n\n" +
         "Only return empty name if the image is completely blank, a person only (no product), or totally unrecognisable.\n" +
-        "If no clear product: {\"name\":\"\",\"brand\":\"\",\"category\":\"General\",\"description\":\"\"}";
+        "If no clear product: {\"name\":\"\",\"brand\":\"\",\"category\":\"General\",\"description\":\"\",\"confidence\":0,\"authenticity\":\"authentic\"}";
 
     // ── Parsers ───────────────────────────────────────────────────────────────
 
@@ -415,11 +452,22 @@ public class GeminiService {
         JsonNode json = mapper.readTree(text);
         String name = json.path("name").asText("").trim();
         if (name.isEmpty()) return null;
+
+        int confidence = json.path("confidence").asInt(0);
+        if (confidence < 50 || confidence > 99) confidence = 0; // let ScanService apply its fallback
+
+        String authenticity = json.path("authenticity").asText("authentic").trim().toLowerCase();
+        if (!authenticity.equals("authentic") && !authenticity.equals("suspicious") && !authenticity.equals("counterfeit")) {
+            authenticity = "authentic";
+        }
+
         return new ProductInfo(
             name,
             json.path("brand").asText("Unknown").trim(),
             json.path("category").asText("General").trim(),
-            json.path("description").asText("").trim()
+            json.path("description").asText("").trim(),
+            confidence,
+            authenticity
         );
     }
 

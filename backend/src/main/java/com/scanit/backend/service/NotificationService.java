@@ -5,6 +5,7 @@ import com.scanit.backend.dto.PriceAlertDto;
 import com.scanit.backend.entity.Notification;
 import com.scanit.backend.entity.PriceAlert;
 import com.scanit.backend.entity.User;
+import com.scanit.backend.enums.NotificationType;
 import com.scanit.backend.exception.BadRequestException;
 import com.scanit.backend.exception.ResourceNotFoundException;
 import com.scanit.backend.repository.NotificationRepository;
@@ -23,6 +24,26 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final PriceAlertRepository priceAlertRepository;
     private final UserRepository userRepository;
+    private final PushNotificationService pushNotificationService;
+
+    /** Records an in-app notification and, if the user has a registered device,
+     *  sends a push notification too. Call this wherever something notification-worthy
+     *  actually happens (subscription activated, price drop found, etc.). */
+    public void notify(User user, String title, String body, NotificationType type) {
+        notificationRepository.save(Notification.builder()
+                .user(user)
+                .title(title)
+                .body(body)
+                .type(type)
+                .build());
+        pushNotificationService.send(user.getPushToken(), title, body);
+    }
+
+    public void savePushToken(String userEmail, String token) {
+        User user = findUser(userEmail);
+        user.setPushToken(token);
+        userRepository.save(user);
+    }
 
     public List<NotificationDto> getNotifications(String userEmail) {
         return notificationRepository.findByUserOrderByTimestampDesc(findUser(userEmail))
