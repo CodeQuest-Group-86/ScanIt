@@ -22,8 +22,10 @@ export default function SignUpScreen() {
   const validate = () => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = "Name is required";
+
     if (!email.trim()) e.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(email)) e.email = "Enter a valid email!";
+
     if (!phone.trim()) e.phone = "Phone number is required";
     else if (!/^\+?[0-9]{9,15}$/.test(phone.replace(/\s/g, "")))
       e.phone = "Enter a valid phone number (e.g. +233207384908)";
