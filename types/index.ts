@@ -30,6 +30,8 @@ export interface SignUpPayload {
   password: string;
   role: Role;
   phoneNumber?: string;
+  /** Token returned by verifyOtp after successful email verification (purpose: 'signup'). */
+  signupToken: string;
 }
 
 export interface Seller {
@@ -162,13 +164,11 @@ export interface ApiResponse<T> {
 }
 
 // ─── OTP ──────────────────────────────────────────────────────────────────────
-
-export type OtpChannel = 'email' | 'sms';
+// Email only — OTP codes are sent via Resend, which has no SMS channel.
 
 export interface SendOtpPayload {
-  /** E.164 phone (e.g. +233201234567) or email address */
+  /** Email address */
   contact: string;
-  channel: OtpChannel;
   /** 'signup' | 'reset-password' */
   purpose: 'signup' | 'reset-password';
 }

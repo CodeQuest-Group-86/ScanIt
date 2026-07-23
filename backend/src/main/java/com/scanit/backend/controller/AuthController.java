@@ -35,7 +35,7 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.forgotPassword(request.getEmail());
-        return ResponseEntity.ok(ApiResponse.success("Password reset email sent. Check your inbox.", null));
+        return ResponseEntity.ok(ApiResponse.success("If an account exists with that email, a password reset link has been sent.", null));
     }
 
     @PostMapping("/reset-password")
@@ -58,8 +58,8 @@ public class AuthController {
 
     // ── OTP endpoints ─────────────────────────────────────────────────────────
 
-    /** Step 1 — send a 6-digit OTP via SMS (Twilio Verify) or email (Resend).
-     *  In dev mode (no provider configured), returns { devCode } so the app can pre-fill it. */
+    /** Step 1 — send a 6-digit OTP via email (Resend).
+     *  In dev mode (no Resend key configured), returns { devCode } so the app can pre-fill it. */
     @PostMapping("/otp/send")
     public ResponseEntity<ApiResponse<java.util.Map<String, String>>> sendOtp(@Valid @RequestBody SendOtpRequest req) {
         String devCode = otpService.send(req);
@@ -72,14 +72,11 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(msg, data));
     }
 
-    /** Step 2 — verify the code. Returns resetToken for reset-password purpose. */
+    /** Step 2 — verify the code. Returns resetToken for reset-password or signupToken for signup. */
     @PostMapping("/otp/verify")
     public ResponseEntity<ApiResponse<java.util.Map<String, String>>> verifyOtp(@Valid @RequestBody VerifyOtpRequest req) {
-        String resetToken = otpService.verify(req);
-        java.util.Map<String, String> data = resetToken != null
-                ? java.util.Map.of("resetToken", resetToken)
-                : java.util.Map.of();
-        return ResponseEntity.ok(ApiResponse.success("OTP verified", data));
+        java.util.Map<String, String> tokens = otpService.verify(req);
+        return ResponseEntity.ok(ApiResponse.success("OTP verified", tokens));
     }
 
     /** Step 3 (reset-password only) — set a new password using the resetToken. */

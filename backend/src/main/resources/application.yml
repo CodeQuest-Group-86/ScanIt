@@ -12,6 +12,9 @@ server:
   port: ${PORT:8080}
   servlet:
     context-path: /api/v1
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 management:
   endpoints:
@@ -22,34 +25,37 @@ management:
   endpoint:
     health:
       show-details: never
-  health:
-    mail:
-      enabled: false
 
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:dev-secret-change-in-production-use-env-var}
     access-token-expiration: 3600000      # 1 hour  (ms)
     refresh-token-expiration: 604800000   # 7 days  (ms)
-  mail:
-    from: noreply@scanit.app
   frontend:
     url: http://localhost:19006
 
-# ── Twilio Verify — SMS OTP (free trial) ──────────────────────────────────────
-# Sign up at https://www.twilio.com/try-twilio
-# Verify → create a service → copy Service SID
-twilio:
-  account-sid: ${TWILIO_ACCOUNT_SID:}
-  auth-token: ${TWILIO_AUTH_TOKEN:}
-  verify:
-    service-sid: ${TWILIO_VERIFY_SERVICE_SID:}
-
-# ── Resend — Email OTP (free tier: 3,000 emails/month) ────────────────────────
+# ── Resend — all app email: OTP codes + password-reset links (free tier: 3,000/mo) ──
 # Sign up at https://resend.com → API Keys → Create key
 resend:
   api-key: ${RESEND_API_KEY:}
   from: ${RESEND_FROM:ScanIt <onboarding@resend.dev>}
+
+# ── Gemini Vision — product identification (free tier: 1,500 requests/day) ──────
+# Get a free key: https://aistudio.google.com/app/apikey
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+
+# ── SerpAPI — live price comparison / where-to-buy (free tier: 100 searches/mo) ─
+# Sign up at https://serpapi.com → copy your private API key
+serpapi:
+  api-key: ${SERPAPI_API_KEY:}
+
+# ── Cloudinary — scan photo storage (free tier: 25 monthly credits) ─────────────
+# Sign up at https://cloudinary.com → Dashboard for cloud name / API key / secret
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
 
 # ── Paystack — subscription payments ───────────────────────────────────────────
 # Only the SECRET key lives on the backend — it's what verifies transactions server-side.

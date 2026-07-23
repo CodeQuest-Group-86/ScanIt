@@ -73,6 +73,10 @@ public class User implements UserDetails {
     private String otpPurpose;
     private String phoneNumber;
 
+    /** Short-lived token issued after successful OTP verification for sign-up. */
+    private String signupToken;
+    private Instant signupTokenExpiry;
+
     /** Expo push token — set via POST /users/push-token once the app has notification
      *  permission. Null means the device isn't registered for push. */
     private String pushToken;

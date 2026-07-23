@@ -63,6 +63,7 @@ export const authService = {
           password: payload.password,
           role: payload.role,
           phoneNumber: payload.phoneNumber,
+          signupToken: payload.signupToken,
         },
         { skipAuth: true }
       );
@@ -127,7 +128,7 @@ export const authService = {
   // ─── OTP ───────────────────────────────────────────────────────────────────
 
   /**
-   * Request a 6-digit OTP sent via email (Resend) or SMS (Twilio Verify).
+   * Request a 6-digit OTP sent via email (Resend).
    * The backend handles the actual delivery — this just triggers it.
    */
   async sendOtp(payload: SendOtpPayload): Promise<ApiResponse<{ devCode?: string }>> {
@@ -147,16 +148,17 @@ export const authService = {
    * On success the backend returns a short-lived resetToken (for password reset)
    * or marks the account as verified (for sign-up).
    */
-  async verifyOtp(payload: VerifyOtpPayload): Promise<ApiResponse<{ resetToken?: string }>> {
+  async verifyOtp(payload: VerifyOtpPayload): Promise<ApiResponse<{ resetToken?: string; signupToken?: string }>> {
     try {
-      const data = await api.post<{ resetToken?: string }>('/auth/otp/verify', payload, { skipAuth: true });
+      const data = await api.post<{ resetToken?: string; signupToken?: string }>('/auth/otp/verify', payload, { skipAuth: true });
       return { success: true, data };
     } catch (e: any) {
       // Fallback for development without backend
       console.warn('Backend not available, using mock OTP verify:', e.message);
       if (payload.code === '123456') {
         const resetToken = payload.purpose === 'reset-password' ? 'mock-reset-token-' + Date.now() : undefined;
-        return { success: true, message: 'OTP verified', data: { resetToken } };
+        const signupToken = payload.purpose === 'signup' ? 'mock-signup-token-' + Date.now() : undefined;
+        return { success: true, message: 'OTP verified', data: { resetToken, signupToken } };
       }
       return { success: false, message: 'Invalid OTP (use 123456 in dev mode)', data: null as never };
     }

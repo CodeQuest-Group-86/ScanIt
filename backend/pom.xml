@@ -47,12 +47,6 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- Mail (forgot-password flow) -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
-        </dependency>
-
         <!-- PostgreSQL (production) -->
         <dependency>
             <groupId>org.postgresql</groupId>
@@ -99,14 +93,7 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- Twilio SDK — SMS OTP via Twilio Verify (free trial) -->
-        <dependency>
-            <groupId>com.twilio.sdk</groupId>
-            <artifactId>twilio</artifactId>
-            <version>10.1.0</version>
-        </dependency>
-
-        <!-- OkHttp — used for Resend email HTTP API (no official Java SDK needed) -->
+        <!-- OkHttp — used for Resend, SerpAPI, and Cloudinary HTTP APIs (no SDKs needed) -->
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>

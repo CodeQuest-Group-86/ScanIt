@@ -6,8 +6,8 @@ import Button from '@/components/Button';
 import AuthScreenLayout from '@/components/ui/AuthScreenLayout';
 import { authService } from '@/services/auth';
 import { useAuthStore } from '@/stores/auth';
+import { useSignupDraftStore } from '@/stores/signupDraft';
 import { Colors, Radii, Spacing, Typography } from '@/theme';
-import type { OtpChannel } from '@/types';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
@@ -20,17 +20,12 @@ const RESEND_SECONDS = 60;
 export default function VerifyOtpScreen() {
   const params = useLocalSearchParams<{
     contact: string;
-    channel: OtpChannel;
     purpose: 'signup' | 'reset-password';
-    name?: string;
-    email?: string;
-    phone?: string;
-    password?: string;
-    role?: string;
     devCode?: string;
   }>();
 
-  const { contact, channel, purpose } = params;
+  const { contact, purpose } = params;
+  const draft = useSignupDraftStore();
   const devCode = params.devCode && params.devCode.length === OTP_LENGTH ? params.devCode : '';
 
   const [digits, setDigits] = useState<string[]>(
@@ -40,6 +35,7 @@ export default function VerifyOtpScreen() {
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_SECONDS);
   const [otpVerified, setOtpVerified] = useState(false);
+  const [signupToken, setSignupToken] = useState('');
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const { signUp } = useAuthStore();
@@ -71,7 +67,7 @@ export default function VerifyOtpScreen() {
     setResendTimer(RESEND_SECONDS);
     setError('');
     setOtpVerified(false);
-    const res = await authService.sendOtp({ contact, channel, purpose });
+    const res = await authService.sendOtp({ contact, purpose });
     if (res.success && res.data?.devCode) {
       setDigits(res.data.devCode.split(''));
     }
@@ -81,6 +77,8 @@ export default function VerifyOtpScreen() {
     if (code.length < OTP_LENGTH) { setError('Enter the full 6-digit code'); return; }
     setLoading(true);
     setError('');
+
+    let token = signupToken;
 
     if (!otpVerified) {
       const res = await authService.verifyOtp({ contact, code, purpose });
@@ -101,19 +99,23 @@ export default function VerifyOtpScreen() {
         return;
       }
 
+      token = res.data?.signupToken ?? '';
+      setSignupToken(token);
       setOtpVerified(true);
     }
 
     const ok = await signUp(
-      params.name ?? '',
-      params.email ?? contact,
-      params.password ?? '',
-      (params.role as 'consumer' | 'seller') ?? 'consumer',
-      params.phone,
+      draft.name,
+      draft.email || contact,
+      draft.password,
+      'consumer',
+      token,
+      draft.phoneNumber,
     );
 
     setLoading(false);
     if (ok) {
+      useSignupDraftStore.getState().clear();
       router.replace('/(tabs)/explore');
     } else {
       const storeErr = useAuthStore.getState().error ?? '';

@@ -18,6 +18,4 @@ public class ScanResultDto {
     private String imageUri;
     /** Google Search URL — opens in device browser. */
     private String googleSearchUrl;
-    /** DuckDuckGo search URL used for seller discovery. */
-    private String duckDuckGoSearchUrl;
 }

@@ -1,9 +1,31 @@
 import AnimatedGlassTabBar from '@/components/ui/AnimatedGlassTabBar';
 import { Colors } from '@/theme';
-import { Tabs } from 'expo-router';
-import React from 'react';
+import { Tabs, router } from 'expo-router';
+import React, { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { useAuthStore } from '@/stores/auth';
 
 export default function TabLayout() {
+  const { isInitialized, user } = useAuthStore();
+  const [checked, setChecked] = React.useState(false);
+
+  useEffect(() => {
+    if (isInitialized) {
+      setChecked(true);
+      if (!user) {
+        router.replace('/(auth)/sign-in');
+      }
+    }
+  }, [isInitialized, user]);
+
+  if (!checked || !user) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <Tabs
       tabBar={props => <AnimatedGlassTabBar {...props} />}

@@ -24,9 +24,9 @@ public class SignUpRequest {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
-    @NotBlank(message = "Role is required")
-    @Pattern(regexp = "consumer|seller|CONSUMER|SELLER", message = "Role must be consumer or seller")
-    private String role;
-
     private String phoneNumber;
+
+    /** Token returned by POST /auth/otp/verify after successful email verification */
+    @NotBlank(message = "Signup verification token is required")
+    private String signupToken;
 }

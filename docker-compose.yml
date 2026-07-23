@@ -3,8 +3,11 @@ version: "3.9"
 # ─── ScanIt Full Stack ────────────────────────────────────────────────────────
 # Services:
 #   postgres  — primary database (port 5432)
-#   mailhog   — local SMTP + web UI for email preview (ports 1025 / 8025)
 #   backend   — Spring Boot API (port 8080)
+#
+# Email (Resend), product ID (Gemini), price comparison (SerpAPI), and image
+# storage (Cloudinary) are all external free-tier APIs — no local containers
+# needed for them, just the API keys below.
 #
 # Usage:
 #   docker compose up -d            # start all services
@@ -20,7 +23,7 @@ services:
     environment:
       POSTGRES_DB: scanit
       POSTGRES_USER: scanit
-      POSTGRES_PASSWORD: scanit_dev_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -30,16 +33,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ── MailHog (local SMTP) ────────────────────────────────────────────────────
-  mailhog:
-    image: mailhog/mailhog:latest
-    restart: unless-stopped
-    ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI — open http://localhost:8025 to see emails
-    logging:
-      driver: none
 
   # ── Spring Boot Backend ─────────────────────────────────────────────────────
   backend:
@@ -54,13 +47,16 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       DATABASE_URL: jdbc:postgresql://postgres:5432/scanit
       DATABASE_USERNAME: scanit
-      DATABASE_PASSWORD: scanit_dev_password
-      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
-      MAIL_HOST: mailhog
-      MAIL_PORT: 1025
-      MAIL_USERNAME: ""
-      MAIL_PASSWORD: ""
-      FRONTEND_URL: http://localhost:19006
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      RESEND_API_KEY: ${RESEND_API_KEY:?set RESEND_API_KEY in .env}
+      RESEND_FROM: ${RESEND_FROM:-ScanIt <onboarding@resend.dev>}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}
+      SERPAPI_API_KEY: ${SERPAPI_API_KEY:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:19006}
     ports:
       - "8080:8080"
     healthcheck:

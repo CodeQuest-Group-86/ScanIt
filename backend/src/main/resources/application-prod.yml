@@ -1,6 +1,8 @@
 spring:
   datasource:
-    url: ${DATABASE_URL}
+    # Render's Blueprint wires DB_HOST/DB_PORT/DB_NAME from its managed Postgres instance
+    # (see render.yaml). Set DATABASE_URL directly instead if deploying elsewhere.
+    url: ${DATABASE_URL:jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}}
     driver-class-name: org.postgresql.Driver
     username: ${DATABASE_USERNAME:}
     password: ${DATABASE_PASSWORD:}
@@ -17,17 +19,6 @@ spring:
     properties:
       hibernate:
         default_schema: public
-  mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
 
 app:
   jwt:

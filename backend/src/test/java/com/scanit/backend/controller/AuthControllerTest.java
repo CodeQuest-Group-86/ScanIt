@@ -10,6 +10,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Map;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,12 +24,33 @@ class AuthControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper mapper;
 
-    private SignUpRequest signUpRequest(String email) {
+    /**
+     * Sign-up now requires a signupToken minted by a completed OTP verification (Resend
+     * email OTP) rather than a bare role field — this drives the real flow (send → verify)
+     * so the devCode surfaced in dev/test mode (no RESEND_API_KEY) stands in for the email.
+     */
+    private String obtainSignupToken(String email) throws Exception {
+        String sendBody = mockMvc.perform(post("/auth/otp/send")
+                        .contentType("application/json")
+                        .content(mapper.writeValueAsString(Map.of("contact", email, "purpose", "signup"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String devCode = mapper.readTree(sendBody).path("data").path("devCode").asText();
+
+        String verifyBody = mockMvc.perform(post("/auth/otp/verify")
+                        .contentType("application/json")
+                        .content(mapper.writeValueAsString(Map.of("contact", email, "code", devCode, "purpose", "signup"))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return mapper.readTree(verifyBody).path("data").path("signupToken").asText();
+    }
+
+    private SignUpRequest signUpRequest(String email) throws Exception {
         SignUpRequest req = new SignUpRequest();
         req.setName("Test User");
         req.setEmail(email);
         req.setPassword("password123");
-        req.setRole("consumer");
+        req.setSignupToken(obtainSignupToken(email));
         return req;
     }
 

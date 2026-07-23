@@ -65,17 +65,29 @@ async function doRefresh(): Promise<string | null> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      await clearTokens();
+      return null;
+    }
     const json = await res.json();
     const { accessToken, refreshToken: newRefresh } = json.data ?? json;
     if (accessToken) {
       await saveTokens(accessToken, newRefresh ?? refreshToken);
       return accessToken;
     }
+    await clearTokens();
     return null;
   } catch {
+    await clearTokens();
     return null;
   }
+}
+
+async function clearTokens(): Promise<void> {
+  await Promise.all([
+    SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY),
+    SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY),
+  ]);
 }
 
 // ─── Core request ─────────────────────────────────────────────────────────────

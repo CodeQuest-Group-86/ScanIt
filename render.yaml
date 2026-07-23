@@ -1,0 +1,65 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: Render dashboard → New → Blueprint → point at this repo/branch (alternate_2).
+# Free tier: web service spins down after 15 min idle, PostgreSQL free instance
+# expires after 90 days (Render will prompt you to renew it).
+
+services:
+  - type: web
+    name: scanit-backend
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/v1/actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: PORT
+        value: 8080
+      - key: DB_HOST
+        fromDatabase:
+          name: scanit-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: scanit-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: scanit-db
+          property: database
+      - key: DATABASE_USERNAME
+        fromDatabase:
+          name: scanit-db
+          property: user
+      - key: DATABASE_PASSWORD
+        fromDatabase:
+          name: scanit-db
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://scanit.app
+      # ── Set these manually in the Render dashboard (free-tier API keys) ──────
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: "ScanIt <onboarding@resend.dev>"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+
+databases:
+  - name: scanit-db
+    plan: free
+    region: oregon

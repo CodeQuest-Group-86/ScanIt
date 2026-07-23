@@ -8,6 +8,7 @@ import type { Role } from "@/types";
 import { Link, router } from "expo-router";
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSignupDraftStore } from "@/stores/signupDraft";
 
 export default function SignUpScreen() {
   const [name, setName] = useState("");
@@ -38,9 +39,15 @@ export default function SignUpScreen() {
     if (!validate()) return;
     setLoading(true);
 
+    useSignupDraftStore.getState().setDraft({
+      name: name.trim(),
+      email: email.trim(),
+      password,
+      phoneNumber: phone.trim(),
+    });
+
     const res = await authService.sendOtp({
       contact: email.trim(),
-      channel: "email",
       purpose: "signup",
     });
 
@@ -57,13 +64,7 @@ export default function SignUpScreen() {
       pathname: "/(auth)/verify-otp",
       params: {
         contact: email.trim(),
-        channel: "email",
         purpose: "signup",
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        password,
-        role,
         devCode: res.data?.devCode ?? "",
       },
     });
@@ -87,8 +88,7 @@ export default function SignUpScreen() {
       }
     >
       <View style={styles.roleSection}>
-        {/* Getting rid of the line below */}
-        {/* <Text style={styles.roleLabel}>I am a</Text> */}
+        <Text style={styles.roleLabel}>I am a</Text>
         <View style={styles.roleRow}>
           <Chip
             label="Consumer"

@@ -19,14 +19,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -40,8 +41,8 @@ public class ScanService {
     private final UserRepository userRepository;
     private final ProductService productService;
     private final GeminiService geminiService;
-    private final DuckDuckGoService duckDuckGoService;
-    private final CompuGhanaService compuGhanaService;
+    private final SerpApiService serpApiService;
+    private final CloudinaryService cloudinaryService;
 
     /** Must stay in sync with PAYSTACK_PLANS in services/payment.ts. -1 = unlimited. */
     private static final int FREE_SCAN_LIMIT = 3;
@@ -77,82 +78,30 @@ public class ScanService {
         MatchResult match = findOrCreateProduct(gemini);
         Product matched = match.product();
 
-        // Step 2: DuckDuckGo — find where to buy + Google Search links
-        DuckDuckGoService.ProductSearch ddgSearch = null;
-        GeminiService.ProductResearch research = null;
+        // Step 2: SerpAPI — live price comparison + where-to-buy links
+        SerpApiService.ProductSearch priceSearch = null;
         try {
-            ddgSearch = duckDuckGoService.searchProduct(gemini.name(), gemini.brand(), gemini.category());
-            if (!ddgSearch.snippets().isEmpty()) {
-                research = geminiService.researchFromSnippets(gemini, ddgSearch.snippets());
-            }
-            if (research == null && ddgSearch.detectedPrice() > 0) {
-                research = new GeminiService.ProductResearch(
-                    Map.of(), 0, 0, ddgSearch.detectedPrice(),
-                    ddgSearch.sellers()
-                );
-            } else if (research != null && ddgSearch.sellers() != null) {
-                // Merge DDG sellers (with Google URLs) into research
-                List<GeminiService.ResearchSeller> merged = new ArrayList<>(ddgSearch.sellers());
-                if (research.sellers() != null) {
-                    for (GeminiService.ResearchSeller s : research.sellers()) {
-                        if (merged.stream().noneMatch(m -> m.name().equalsIgnoreCase(s.name()))) {
-                            merged.add(s);
-                        }
-                    }
-                }
-                research = new GeminiService.ProductResearch(
-                    research.specs(), research.priceMin(), research.priceMax(),
-                    research.priceTypical() > 0 ? research.priceTypical() : ddgSearch.detectedPrice(),
-                    merged
-                );
-            }
+            priceSearch = serpApiService.searchPrices(gemini.name(), gemini.brand(), gemini.category());
         } catch (Exception e) {
-            log.warn("DuckDuckGo product search failed, returning basic data: {}", e.getMessage());
+            log.warn("SerpAPI price search failed, returning basic data: {}", e.getMessage());
         }
 
-        // Step 2.5: CompuGhana — a real live price, not a search-snippet guess. Replaces
-        // the generic CompuGhana entry DuckDuckGoService adds for every product.
+        // Step 3: Cloudinary — persist the scan photo so it survives past this response
+        String cloudinaryUrl = null;
         try {
-            List<CompuGhanaService.Listing> compuGhanaResults = compuGhanaService.search(gemini.name());
-            if (!compuGhanaResults.isEmpty()) {
-                CompuGhanaService.Listing best = compuGhanaResults.get(0);
-                GeminiService.ResearchSeller realSeller = new GeminiService.ResearchSeller(
-                    "CompuGhana", best.url(), "Online · Electronics", best.price()
-                );
-                List<GeminiService.ResearchSeller> existing = research != null && research.sellers() != null
-                        ? research.sellers() : List.of();
-                List<GeminiService.ResearchSeller> merged = new ArrayList<>();
-                for (GeminiService.ResearchSeller s : existing) {
-                    if (!"compughana".equalsIgnoreCase(s.name().replace(" ", ""))) {
-                        merged.add(s);
-                    }
-                }
-                merged.add(realSeller);
-
-                double priceTypical = research != null && research.priceTypical() > 0
-                        ? research.priceTypical() : best.price();
-                research = new GeminiService.ProductResearch(
-                        research != null ? research.specs() : Map.of(),
-                        research != null ? research.priceMin() : 0,
-                        research != null ? research.priceMax() : 0,
-                        priceTypical,
-                        merged
-                );
-            }
+            cloudinaryUrl = cloudinaryService.upload(imageBytes, mimeType);
         } catch (Exception e) {
-            log.warn("CompuGhana enrichment failed: {}", e.getMessage());
+            log.warn("Cloudinary upload failed: {}", e.getMessage());
         }
 
-        // Persist updated specs/price to the product record
-        if (research != null) {
-            if (research.specs() != null && !research.specs().isEmpty()) {
-                matched.setSpecs(research.specs());
-            }
-            if (research.priceTypical() > 0 && matched.getPrice() == 0) {
-                matched.setPrice(research.priceTypical());
-            }
-            productRepository.save(matched);
+        double typicalPrice = typicalPrice(priceSearch);
+        if (typicalPrice > 0 && matched.getPrice() == 0) {
+            matched.setPrice(typicalPrice);
         }
+        if (cloudinaryUrl != null && (matched.getImageUrl() == null || matched.getImageUrl().isBlank())) {
+            matched.setImageUrl(cloudinaryUrl);
+        }
+        productRepository.save(matched);
 
         double confidence = gemini.confidence() > 0
                 ? gemini.confidence()
@@ -167,7 +116,7 @@ public class ScanService {
                         .product(matched)
                         .confidence(confidence)
                         .authenticityStatus(scanAuthenticity)
-                        .imageUri("upload")
+                        .imageUri(cloudinaryUrl != null ? cloudinaryUrl : "upload")
                         .build()
         );
 
@@ -176,7 +125,7 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Scan complete — user={} product={} confidence={}", userEmail, matched.getName(), confidence);
-        return toDto(saved, research, ddgSearch);
+        return toDto(saved, priceSearch);
     }
 
     // ── Barcode lookup ────────────────────────────────────────────────────────
@@ -198,25 +147,17 @@ public class ScanService {
             log.info("Barcode {} not in local DB — querying Open Food Facts", barcode);
             product = fetchFromOpenFoodFacts(barcode);
 
-            // 3. DuckDuckGo search for live prices/sellers
-            DuckDuckGoService.ProductSearch ddgSearch = null;
-            GeminiService.ProductResearch research = null;
+            // 3. SerpAPI for live prices/sellers
+            SerpApiService.ProductSearch priceSearch = null;
             try {
-                ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
-                if (!ddgSearch.snippets().isEmpty()) {
-                    research = geminiService.researchFromSnippets(
-                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null),
-                        ddgSearch.snippets()
-                    );
-                }
-                if (research != null && research.priceTypical() > 0) {
-                    product.setPrice(research.priceTypical());
-                } else if (ddgSearch.detectedPrice() > 0) {
-                    product.setPrice(ddgSearch.detectedPrice());
+                priceSearch = serpApiService.searchPrices(product.getName(), product.getBrand(), product.getCategory());
+                double typicalPrice = typicalPrice(priceSearch);
+                if (typicalPrice > 0) {
+                    product.setPrice(typicalPrice);
                 }
                 productRepository.save(product);
             } catch (Exception e) {
-                log.warn("Research failed for barcode product: {}", e.getMessage());
+                log.warn("Price search failed for barcode product: {}", e.getMessage());
                 productRepository.save(product);
             }
 
@@ -230,10 +171,10 @@ public class ScanService {
                             .build()
             );
             user.setScansCount(user.getScansCount() + 1);
-        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
+            user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
             userRepository.save(user);
             log.debug("Barcode via OFF — user={} barcode={} product={}", userEmail, barcode, product.getName());
-            return toDto(saved, research, ddgSearch);
+            return toDto(saved, priceSearch);
         }
 
         ScanResult saved = scanResultRepository.save(
@@ -251,7 +192,7 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Barcode scan — user={} barcode={} product={}", userEmail, barcode, product.getName());
-        return toDto(saved, null, null);
+        return toDto(saved, null);
     }
 
     /** Fetch product info from Open Food Facts and auto-create it in the local DB. */
@@ -325,7 +266,7 @@ public class ScanService {
     public List<ScanResultDto> getScanHistory(String userEmail) {
         User user = findUser(userEmail);
         return scanResultRepository.findByUserOrderByScannedAtDesc(user)
-                .stream().map(r -> toDto(r, null, null)).collect(Collectors.toList());
+                .stream().map(r -> toDto(r, null)).collect(Collectors.toList());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -393,19 +334,29 @@ public class ScanService {
         }
     }
 
+    /** Average of sellers with a known (>0) price — the closest thing to a "typical" price. */
+    private double typicalPrice(SerpApiService.ProductSearch priceSearch) {
+        if (priceSearch == null || priceSearch.sellers() == null) return 0;
+        return priceSearch.sellers().stream()
+                .mapToDouble(SerpApiService.PriceResult::price)
+                .filter(p -> p > 0)
+                .average()
+                .orElse(0);
+    }
+
     // ── DTO mapping ───────────────────────────────────────────────────────────
 
-    private ScanResultDto toDto(ScanResult r, GeminiService.ProductResearch research, DuckDuckGoService.ProductSearch ddgSearch) {
+    private ScanResultDto toDto(ScanResult r, SerpApiService.ProductSearch priceSearch) {
         ProductDto base = productService.toDto(r.getProduct());
 
         ProductDto productDto = base;
-        if (research != null) {
-            // Build dynamic sellers from research
-            List<SellerDto> dynamicSellers = research.sellers().stream()
-                    .filter(s -> s.name() != null && !s.name().isBlank())
+        if (priceSearch != null && priceSearch.sellers() != null && !priceSearch.sellers().isEmpty()) {
+            // Build dynamic sellers from the SerpAPI price comparison
+            List<SellerDto> dynamicSellers = priceSearch.sellers().stream()
+                    .filter(s -> s.source() != null && !s.source().isBlank())
                     .map(s -> SellerDto.builder()
                             .id(UUID.randomUUID().toString())
-                            .name(s.name())
+                            .name(s.source())
                             .location(s.location())
                             .distance("N/A")
                             .phone("")
@@ -418,10 +369,11 @@ public class ScanService {
                             .build())
                     .collect(Collectors.toList());
 
-            // Merge: DB sellers first, then dynamic research sellers
+            // Merge: DB sellers first, then dynamic price-comparison sellers
             List<SellerDto> allSellers = new ArrayList<>(base.getSellers());
             allSellers.addAll(dynamicSellers);
 
+            double typical = typicalPrice(priceSearch);
             productDto = ProductDto.builder()
                     .id(base.getId())
                     .name(base.getName())
@@ -429,11 +381,10 @@ public class ScanService {
                     .category(base.getCategory())
                     .description(base.getDescription())
                     .imageUrl(base.getImageUrl())
-                    .price(research.priceTypical() > 0 ? research.priceTypical() : base.getPrice())
+                    .price(typical > 0 ? typical : base.getPrice())
                     .currency(base.getCurrency())
                     .origin(base.getOrigin())
-                    .specs(research.specs() != null && !research.specs().isEmpty()
-                            ? research.specs() : base.getSpecs())
+                    .specs(base.getSpecs())
                     .barcode(base.getBarcode())
                     .verified(base.isVerified())
                     .authenticity(base.getAuthenticity())
@@ -448,10 +399,16 @@ public class ScanService {
                 .scannedAt(r.getScannedAt() != null ? r.getScannedAt().toString() : Instant.now().toString())
                 .authenticityStatus(r.getAuthenticityStatus().name().toLowerCase())
                 .imageUri(r.getImageUri())
-                .googleSearchUrl(ddgSearch != null ? ddgSearch.googleSearchUrl()
-                    : DuckDuckGoService.buildProductGoogleUrl(r.getProduct().getName(), r.getProduct().getBrand()))
-                .duckDuckGoSearchUrl(ddgSearch != null ? ddgSearch.duckDuckGoSearchUrl() : null)
+                .googleSearchUrl(priceSearch != null ? priceSearch.googleSearchUrl()
+                    : buildGoogleSearchUrl(r.getProduct().getName(), r.getProduct().getBrand()))
                 .build();
+    }
+
+    private String buildGoogleSearchUrl(String productName, String brand) {
+        String q = brand != null && !brand.isBlank() && !"Unknown".equalsIgnoreCase(brand)
+                ? productName + " " + brand + " buy price Ghana"
+                : productName + " buy price Ghana";
+        return "https://www.google.com/search?q=" + URLEncoder.encode(q, StandardCharsets.UTF_8);
     }
 
     private User findUser(String email) {

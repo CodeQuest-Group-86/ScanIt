@@ -11,8 +11,6 @@ import com.scanit.backend.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -30,10 +28,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-    private final JavaMailSender mailSender;
-
-    @Value("${app.mail.from:noreply@scanit.app}")
-    private String mailFrom;
+    private final ResendEmailService resendEmailService;
 
     @Value("${app.frontend.url:http://localhost:19006}")
     private String frontendUrl;
@@ -44,40 +39,27 @@ public class AuthService {
     // ── Sign up ───────────────────────────────────────────────────────────────
 
     public AuthResponse signUp(SignUpRequest request) {
-        UserRole role = UserRole.valueOf(request.getRole().toUpperCase());
+        // Enforce that OTP was verified before account creation
+        User user = userRepository.findBySignupToken(request.getSignupToken())
+                .orElseThrow(() -> new BadRequestException("Invalid or expired signup verification. Please request a new code."));
 
-        // The OTP flow pre-creates a placeholder user (name="") to store the OTP.
-        // If that placeholder exists, update it with the real data instead of rejecting.
-        java.util.Optional<User> existing = userRepository.findByEmail(request.getEmail());
-
-        User user;
-        if (existing.isPresent()) {
-            User placeholder = existing.get();
-            if (placeholder.getName() != null && !placeholder.getName().isBlank()) {
-                // Real account already exists — reject
-                throw new BadRequestException("An account with that email already exists");
-            }
-            // Placeholder from OTP flow — fill in real data
-            placeholder.setName(request.getName());
-            placeholder.setPassword(passwordEncoder.encode(request.getPassword()));
-            placeholder.setRole(role);
-            if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
-                placeholder.setPhoneNumber(request.getPhoneNumber());
-            }
-            placeholder.setOtpCode(null);
-            placeholder.setOtpExpiry(null);
-            placeholder.setOtpPurpose(null);
-            user = userRepository.save(placeholder);
-        } else {
-            user = User.builder()
-                    .name(request.getName())
-                    .email(request.getEmail())
-                    .password(passwordEncoder.encode(request.getPassword()))
-                    .role(role)
-                    .phoneNumber(request.getPhoneNumber())
-                    .build();
-            user = userRepository.save(user);
+        if (user.getSignupTokenExpiry() == null || user.getSignupTokenExpiry().isBefore(Instant.now())) {
+            throw new BadRequestException("Signup verification expired. Please request a new code.");
         }
+
+        // Always assign CONSUMER on sign-up — SELLER must be granted by admin later
+        UserRole role = UserRole.CONSUMER;
+
+        user.setName(request.getName());
+        user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRole(role);
+        if (request.getPhoneNumber() != null && !request.getPhoneNumber().isBlank()) {
+            user.setPhoneNumber(request.getPhoneNumber());
+        }
+        user.setSignupToken(null);
+        user.setSignupTokenExpiry(null);
+        userRepository.save(user);
 
         return buildAuthResponse(user);
     }
@@ -98,15 +80,16 @@ public class AuthService {
     // ── Forgot password ───────────────────────────────────────────────────────
 
     public void forgotPassword(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("No account found with that email"));
+        java.util.Optional<User> userOpt = userRepository.findByEmail(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            String token = UUID.randomUUID().toString();
+            user.setResetPasswordToken(token);
+            user.setResetPasswordTokenExpiry(Instant.now().plusSeconds(3600)); // 1 hour
+            userRepository.save(user);
 
-        String token = UUID.randomUUID().toString();
-        user.setResetPasswordToken(token);
-        user.setResetPasswordTokenExpiry(Instant.now().plusSeconds(3600)); // 1 hour
-        userRepository.save(user);
-
-        sendPasswordResetEmail(user.getEmail(), user.getName(), token);
+            sendPasswordResetEmail(user.getEmail(), user.getName(), token);
+        }
     }
 
     // ── Reset password ────────────────────────────────────────────────────────
@@ -172,20 +155,16 @@ public class AuthService {
 
     private void sendPasswordResetEmail(String to, String name, String token) {
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(mailFrom);
-            message.setTo(to);
-            message.setSubject("ScanIt — Reset Your Password");
-            message.setText(String.format(
-                    "Hello %s,%n%n" +
-                    "You requested a password reset for your ScanIt account.%n%n" +
-                    "Reset token: %s%n%n" +
-                    "Or visit: %s/reset-password?token=%s%n%n" +
-                    "This link expires in 1 hour. If you did not request this, ignore this email.%n%n" +
-                    "— The ScanIt Team",
-                    name, token, frontendUrl, token
-            ));
-            mailSender.send(message);
+            String html = String.format(
+                    "<p>Hello %s,</p>" +
+                    "<p>You requested a password reset for your ScanIt account.</p>" +
+                    "<p>Reset token: <strong>%s</strong></p>" +
+                    "<p>Or visit: <a href=\"%s/reset-password?token=%s\">%s/reset-password?token=%s</a></p>" +
+                    "<p>This link expires in 1 hour. If you did not request this, ignore this email.</p>" +
+                    "<p>— The ScanIt Team</p>",
+                    name, token, frontendUrl, token, frontendUrl, token
+            );
+            resendEmailService.send(to, "ScanIt — Reset Your Password", html);
         } catch (Exception e) {
             log.warn("Could not send password reset email to {}: {}", to, e.getMessage());
         }

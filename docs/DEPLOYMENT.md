@@ -2,6 +2,24 @@
 
 Goal: anyone with the Expo app can create an account and use the real backend.
 
+> **`alternate_2` branch:** this branch hosts the backend on **Render** instead of
+> Railway, with Resend (email OTP), Gemini (product ID), SerpAPI (price comparison),
+> and Cloudinary (image storage) — all free tier. Quick path:
+> 1. Push this branch to GitHub.
+> 2. Render dashboard → **New → Blueprint** → select the repo/branch → it reads
+>    [`render.yaml`](../render.yaml) and provisions the web service + free Postgres.
+> 3. In the service's **Environment** tab, fill in the keys marked `sync: false`
+>    in `render.yaml`: `RESEND_API_KEY`, `GEMINI_API_KEY`, `SERPAPI_API_KEY`,
+>    `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`,
+>    and `PAYSTACK_SECRET_KEY` if you use payments.
+> 4. Render builds `backend/Dockerfile` and gives you a URL like
+>    `https://scanit-backend.onrender.com` — put that (+ `/api/v1`) in
+>    `EXPO_PUBLIC_API_URL`.
+>
+> Free-tier notes: the web service spins down after 15 minutes idle (first request
+> after that takes ~30-60s to wake up), and the free Postgres instance expires after
+> 90 days unless upgraded. The rest of this doc (Railway) describes the `main` branch.
+
 ---
 
 ## Architecture

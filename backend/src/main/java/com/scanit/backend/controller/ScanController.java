@@ -30,10 +30,21 @@ public class ScanController {
             @RequestPart("image") MultipartFile image,
             Authentication authentication
     ) throws IOException {
+        if (image.isEmpty()) {
+            throw new com.scanit.backend.exception.BadRequestException("Image file is required");
+        }
+        if (image.getSize() > 10 * 1024 * 1024) {
+            throw new com.scanit.backend.exception.BadRequestException("Image must be under 10 MB");
+        }
+        String contentType = image.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new com.scanit.backend.exception.BadRequestException("Only image files are allowed");
+        }
+
         ScanResultDto result = scanService.analyzeImage(
                 authentication.getName(),
                 image.getBytes(),
-                image.getContentType() != null ? image.getContentType() : "image/jpeg"
+                contentType
         );
         return ResponseEntity.ok(ApiResponse.success(result));
     }

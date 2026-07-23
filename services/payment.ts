@@ -1,9 +1,6 @@
 /**
  * services/payment.ts
  *
-<<<<<<< HEAD
- * Paystack payment integration for ScanIt subscriptions.
-=======
  * Paystack payment integration for ScanIt.
  *
  * SECURITY: the Paystack *secret* key must never live in this file or in any
@@ -12,57 +9,11 @@
  * activating a subscription happens on the backend (services/../backend/.../PaymentService.java),
  * which holds the secret key as a server-only env var. This file only ever
  * touches the Paystack *public* key, which is safe to ship in the app.
->>>>>>> 8312fe05e7644889110700cc8d1c208e0456e4b7
  */
 
 import type { ApiResponse } from "@/types";
 import { api } from "@/utils/api";
 
-<<<<<<< HEAD
-const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '';
-
-export interface InitializePaymentParams {
-  plan: 'monthly' | 'yearly';
-  amount?: number; // in GHS, defaults to 20 (monthly) or 210 (yearly)
-}
-
-export interface InitializePaymentResponse {
-  reference: string;
-  authorizationUrl: string;
-  accessCode: string;
-  publicKey: string;
-}
-
-export async function initializePayment(
-  params: InitializePaymentParams,
-): Promise<InitializePaymentResponse> {
-  const amount = params.amount ?? (params.plan === 'yearly' ? 210 : 20);
-  const data = await api.post<PaymentInitResponse>('/payments/initialize', null, {
-    query: { plan: params.plan, amount: String(amount) },
-  });
-  return {
-    reference: data.reference,
-    authorizationUrl: data.authorizationUrl,
-    accessCode: data.accessCode,
-    publicKey: data.publicKey,
-  };
-}
-
-export async function verifyPayment(reference: string): Promise<PaymentVerifyResponse> {
-  const data = await api.get<PaymentVerifyResponse>('/payments/verify', {
-    query: { reference },
-  });
-  return data;
-}
-
-export function getPaystackPublicKey(): string {
-  return PAYSTACK_PUBLIC_KEY;
-}
-
-export function isPaystackConfigured(): boolean {
-  return PAYSTACK_PUBLIC_KEY.length > 0;
-}
-=======
 const PAYSTACK_PUBLIC_KEY = process.env.EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY ?? "";
 
 export interface VerifyPaymentResponse {
@@ -200,4 +151,3 @@ export const paymentService = {
     }
   },
 };
->>>>>>> 8312fe05e7644889110700cc8d1c208e0456e4b7
