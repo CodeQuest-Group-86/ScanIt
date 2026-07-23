@@ -91,6 +91,10 @@ public class SerpApiService {
                                 : extractPrice(item.path("price").asText(""));
 
                         String link = item.path("product_link").asText(item.path("link").asText(""));
+                        if (!link.isBlank() && !isSafeUrl(link)) {
+                            log.warn("Blocked unsafe SerpAPI URL: {}", link);
+                            link = "";
+                        }
 
                         sellers.add(new PriceResult(source, link, price, "Online · Ghana"));
                         if (sellers.size() >= 10) break;
@@ -122,5 +126,15 @@ public class SerpApiService {
             }
         }
         return 0;
+    }
+
+    private static boolean isSafeUrl(String url) {
+        if (url == null || url.isBlank()) return false;
+        try {
+            String lower = url.toLowerCase();
+            return lower.startsWith("http://") || lower.startsWith("https://");
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

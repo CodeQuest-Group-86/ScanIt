@@ -121,26 +121,27 @@ public class GeminiService {
     // ── Prompt ────────────────────────────────────────────────────────────────
 
     private static final String IDENTIFY_PROMPT =
-        "You are a product identification AI. Look at this image carefully and identify what product or item is shown.\n\n" +
-        "IMPORTANT: Be generous — identify ANY physical object: consumer goods, food, drinks, electronics, clothing, " +
-        "household items, tools, stationery, cosmetics, medicine, etc. Even if the brand is unclear, identify the item type.\n\n" +
-        "Also assess two things from the image itself:\n" +
-        "1. confidence — how clearly and unambiguously you can identify this exact product (not a generic guess), as an integer 50-99.\n" +
-        "   Sharp, well-lit, clearly-branded packaging = 90-99. Partial/blurry/unusual angle = 65-85. Ambiguous or generic-looking = 50-64.\n" +
-        "2. authenticity — inspect packaging quality, print sharpness, logo accuracy, spelling, and material finish for counterfeit signs:\n" +
-        "   \"authentic\" — packaging looks consistent with the genuine brand, no red flags.\n" +
-        "   \"suspicious\" — some inconsistency (blurry print, off colors, misspelled text, generic packaging for a branded item).\n" +
-        "   \"counterfeit\" — clear counterfeit indicators (fake holograms, wrong logo, obviously copied packaging).\n" +
-        "   Default to \"authentic\" when there is nothing suspicious to point to — do not guess counterfeit without a concrete visual reason.\n\n" +
+        "You are a product identification AI. Look at this image carefully.\n\n" +
+        "CRITICAL RULES:\n" +
+        "1. ONLY identify the MAIN product clearly visible in the image. Ignore background clutter, packaging materials, people, or unrelated objects.\n" +
+        "2. The 'name' MUST include the specific variant/model/size visible on the product. Examples:\n" +
+        "   - If you see a Coca-Cola bottle with '500ml' on it → name: \"Coca-Cola 500ml\"\n" +
+        "   - If you see a Samsung phone → name: \"Samsung Galaxy A54\" (include exact model if visible)\n" +
+        "   - If you see Indomie noodles → name: \"Indomie Instant Noodles\"\n" +
+        "   - If you see a Dell laptop → name: \"Dell Inspiron 15 3520\" (include model number if visible)\n" +
+        "3. Extract brand, category, and a 1-2 sentence description.\n" +
+        "4. If the product is a drink/food, ALWAYS include the volume/weight in the name (e.g., '500ml', '1L', '250g').\n" +
+        "5. If the product is electronics, ALWAYS try to identify the exact model number.\n" +
+        "6. If you cannot read any text/label on the product, say so in the description but still give your best guess for the name.\n\n" +
         "Respond with ONLY this JSON (no markdown, no explanation):\n" +
-        "{\"name\":\"<specific product name, e.g. Coca-Cola 500ml, Samsung Galaxy A54, Indomie Instant Noodles>\",\n" +
-        " \"brand\":\"<brand name or 'Unknown' if not visible>\",\n" +
+        "{\"name\":\"<EXACT product name with model/size/variant, e.g. Coca-Cola 500ml>\",\n" +
+        " \"brand\":\"<brand name or 'Unknown'>\",\n" +
         " \"category\":\"<Electronics|Clothing|Food|Drinks|Personal Care|Home|Stationery|Health|Tools|General>\",\n" +
-        " \"description\":\"<2-3 sentences describing what this product is and its main use>\",\n" +
         " \"confidence\":<integer 50-99>,\n" +
-        " \"authenticity\":\"<authentic|suspicious|counterfeit>\"}\n\n" +
+        " \"authenticity\":\"<authentic|suspicious|counterfeit>\",\n" +
+        " \"description\":\"<1-2 sentences about what this product is and its main use>\"}\n\n" +
         "Only return empty name if the image is completely blank, a person only (no product), or totally unrecognisable.\n" +
-        "If no clear product: {\"name\":\"\",\"brand\":\"\",\"category\":\"General\",\"description\":\"\",\"confidence\":0,\"authenticity\":\"authentic\"}";
+        "If no clear product: {\"name\":\"\",\"brand\":\"\",\"category\":\"General\",\"confidence\":0,\"authenticity\":\"authentic\",\"description\":\"\"}";
 
     // ── Parser ────────────────────────────────────────────────────────────────
 
