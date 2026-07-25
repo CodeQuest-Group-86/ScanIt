@@ -155,7 +155,7 @@ export default function SignUpScreen() {
       />
 
       <Button
-        label="Send Verification Code"
+        label="Create Account"
         onPress={handleSignUp}
         loading={loading}
         fullWidth
