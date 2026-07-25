@@ -37,6 +37,9 @@ public class OtpService {
 
     private static final int OTP_TTL_SECONDS = 600; // 10 minutes
 
+    /** Publicly hosted so email clients can fetch it — served from this app's own static resources. */
+    private static final String LOGO_URL = "https://scanit-raij.onrender.com/api/v1/logo.png";
+
     /** Explicit timeout — without one, OkHttp's defaults can let a slow/stuck Resend
      *  call hang well past the client's own request timeout instead of failing fast. */
     private final OkHttpClient resendClient = new OkHttpClient.Builder()
@@ -186,12 +189,12 @@ public class OtpService {
             return code; // returned to frontend for dev pre-fill
         }
 
-        String subject = "signup".equals(purpose)
-                ? "Your ScanIt verification code"
-                : "Reset your ScanIt password";
-        String body = String.format(
-                "<p>Your ScanIt code is: <strong style='font-size:24px'>%s</strong></p>" +
-                "<p>Valid for 10 minutes. Do not share it.</p>", code);
+        boolean isSignup = "signup".equals(purpose);
+        String subject = isSignup ? "Your ScanIt verification code" : "Reset your ScanIt password";
+        String intro = isSignup
+                ? "Enter this code to verify your email and finish creating your account."
+                : "Enter this code to reset your ScanIt password.";
+        String body = buildOtpEmailHtml(intro, code);
 
         String json = String.format(
                 "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
@@ -216,6 +219,31 @@ public class OtpService {
             throw new BadRequestException("Failed to send email (network error): " + e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Attribute values here MUST use single quotes, not double — the whole
+     * result gets `"` escaped when it's embedded into the outer JSON payload
+     * above, so any double quotes in the markup would come out mangled.
+     */
+    private String buildOtpEmailHtml(String intro, String code) {
+        return String.format(
+                "<div style='background-color:#FAF0E4;padding:32px 16px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'>" +
+                "<div style='max-width:420px;margin:0 auto;background:#FFFFFF;border-radius:20px;overflow:hidden;'>" +
+                "<div style='background-color:#E8682A;background-image:linear-gradient(135deg,#FF8C4A,#E8682A);padding:28px 24px;text-align:center;'>" +
+                "<img src='%s' width='56' height='56' alt='ScanIt' style='border-radius:14px;display:block;margin:0 auto;' />" +
+                "</div>" +
+                "<div style='padding:32px 28px;text-align:center;'>" +
+                "<p style='margin:0 0 20px;color:#7A6050;font-size:14px;line-height:20px;'>%s</p>" +
+                "<div style='font-size:36px;font-weight:800;letter-spacing:8px;color:#1E1410;margin:0 0 20px;'>%s</div>" +
+                "<p style='margin:0;color:#A89080;font-size:13px;line-height:20px;'>Valid for 10 minutes. Do not share this code with anyone.</p>" +
+                "</div>" +
+                "<div style='background-color:#FAF0E4;padding:16px;text-align:center;'>" +
+                "<p style='margin:0;color:#A89080;font-size:11px;'>ScanIt &middot; Know it&#39;s real before you buy it</p>" +
+                "</div>" +
+                "</div>" +
+                "</div>",
+                LOGO_URL, intro, code);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
