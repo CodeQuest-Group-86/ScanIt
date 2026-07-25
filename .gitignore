@@ -1,51 +1,114 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+# ─── Dependencies ─────────────────────────────────────────────────────────────
 node_modules/
+.pnp
+.pnp.js
 
-# Expo
+# ─── Secrets & environment files ──────────────────────────────────────────────
+# Keep .env.example (template) tracked; ignore every real env file.
+.env
+.env.*
+!.env.example
+
+# Backend local overrides / secret-bearing launchers
+backend/src/main/resources/application-local.yml
+backend/run-local.ps1
+**/secrets/
+**/credentials/
+*credentials*.json
+*service-account*.json
+**/google-services.json
+**/GoogleService-Info.plist
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+*.keystore
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# ─── Expo / React Native ──────────────────────────────────────────────────────
 .expo/
 dist/
 web-build/
 expo-env.d.ts
-
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
-# Metro
 .metro-health-check*
 
-# debug
+# Generated native folders (prebuild)
+/ios
+/android
+
+# ─── Native signing / tooling ─────────────────────────────────────────────────
+.kotlin/
+*.orig.*
+
+# ─── Backend (Java / Maven / H2) ──────────────────────────────────────────────
+backend/target/
+backend/data/
+backend/*.log
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# ─── Logs & debug ─────────────────────────────────────────────────────────────
+*.log
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+pnpm-debug.*
+lerna-debug.*
 
-# macOS
+# ─── OS junk ──────────────────────────────────────────────────────────────────
 .DS_Store
-*.pem
+.DS_Store?
+._*
+Thumbs.db
+Desktop.ini
+ehthumbs.db
 
-# local env files
-.env*.local
-.env.production
+# ─── Editors / IDEs ───────────────────────────────────────────────────────────
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
 
-# typescript
+# Keep shared VS Code recommendations; ignore personal overrides
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+
+# ─── TypeScript / test / coverage ─────────────────────────────────────────────
 *.tsbuildinfo
+coverage/
+.nyc_output/
+*.lcov
 
-# app-example
-
-# generated native folders
-/ios
-/android
+# ─── Tooling / agent worktrees ────────────────────────────────────────────────
 .aider*
+.claude/
+.cursor/
+.grok/
 
-# backend
-backend/target/
-backend/run-local.ps1
-backend/src/main/resources/application-local.yml
-backend/data/
+# ─── Misc local / temp ────────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.bak
+*.cache
+.cache/
+tmp/
+temp/
+)
