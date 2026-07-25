@@ -53,6 +53,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health").permitAll()
                         // H2 console (dev only)
                         .requestMatchers("/h2-console/**").permitAll()
+                        // Static assets embedded in outbound emails (e.g. the OTP email logo) —
+                        // email clients fetch these unauthenticated, so they must be public.
+                        .requestMatchers("/logo.png").permitAll()
                         // Public read on products & sellers
                         .requestMatchers(HttpMethod.GET, "/products/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/sellers/**").permitAll()
