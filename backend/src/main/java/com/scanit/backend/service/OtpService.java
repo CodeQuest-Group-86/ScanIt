@@ -228,22 +228,49 @@ public class OtpService {
      */
     private String buildOtpEmailHtml(String intro, String code) {
         return String.format(
-                "<div style='background-color:#FAF0E4;padding:32px 16px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'>" +
-                "<div style='max-width:420px;margin:0 auto;background:#FFFFFF;border-radius:20px;overflow:hidden;'>" +
-                "<div style='background-color:#E8682A;background-image:linear-gradient(135deg,#FF8C4A,#E8682A);padding:28px 24px;text-align:center;'>" +
-                "<img src='%s' width='56' height='56' alt='ScanIt' style='border-radius:14px;display:block;margin:0 auto;' />" +
+                // Outer canvas — soft warm gradient, matches the app's cream/orange surface tones
+                "<div style='background-color:#FAF0E4;background-image:linear-gradient(180deg,#FFF6EC 0%%,#FAF0E4 55%%,#F2E0C8 100%%);padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'>" +
+                "<div style='max-width:440px;margin:0 auto;background-color:#FFFFFF;border-radius:28px;overflow:hidden;box-shadow:0 20px 40px rgba(62,44,35,0.14);'>" +
+
+                // ── Header banner ──
+                "<div style='background-color:#E8682A;background-image:linear-gradient(135deg,#FF9A5C 0%%,#E8682A 55%%,#C4521A 100%%);padding:44px 24px 32px;text-align:center;'>" +
+                "<table role='presentation' align='center' cellpadding='0' cellspacing='0' style='margin:0 auto;'><tr><td style='background-color:#FFFFFF;border-radius:22px;padding:14px;box-shadow:0 10px 24px rgba(0,0,0,0.18);'>" +
+                "<img src='%s' width='52' height='52' alt='ScanIt' style='display:block;border-radius:12px;' />" +
+                "</td></tr></table>" +
+                "<p style='margin:20px 0 0;color:#FFFFFF;font-size:24px;font-weight:800;letter-spacing:0.3px;'>Scan<span style='color:#FFE3CC;'>It</span></p>" +
+                "<p style='margin:6px 0 0;color:rgba(255,255,255,0.88);font-size:12px;font-weight:500;letter-spacing:0.2px;'>Know it&#39;s real before you buy it</p>" +
                 "</div>" +
-                "<div style='padding:32px 28px;text-align:center;'>" +
-                "<p style='margin:0 0 20px;color:#7A6050;font-size:14px;line-height:20px;'>%s</p>" +
-                "<div style='font-size:36px;font-weight:800;letter-spacing:8px;color:#1E1410;margin:0 0 20px;'>%s</div>" +
-                "<p style='margin:0;color:#A89080;font-size:13px;line-height:20px;'>Valid for 10 minutes. Do not share this code with anyone.</p>" +
+
+                // ── Body ──
+                "<div style='padding:36px 32px 8px;text-align:center;'>" +
+                "<p style='margin:0 0 28px;color:#7A6050;font-size:15px;line-height:22px;'>%s</p>" +
+                "<table role='presentation' align='center' cellpadding='0' cellspacing='0'><tr>%s</tr></table>" +
+                "<p style='margin:28px 0 0;color:#A89080;font-size:13px;line-height:20px;'>Expires in 10 minutes. Do not share this code with anyone &mdash; ScanIt staff will never ask for it.</p>" +
                 "</div>" +
-                "<div style='background-color:#FAF0E4;padding:16px;text-align:center;'>" +
-                "<p style='margin:0;color:#A89080;font-size:11px;'>ScanIt &middot; Know it&#39;s real before you buy it</p>" +
+
+                // ── Footer ──
+                "<div style='padding:28px 32px 32px;text-align:center;'>" +
+                "<div style='height:1px;background-color:#F0E4D4;margin:0 0 20px;'></div>" +
+                "<p style='margin:0;color:#C4B5A5;font-size:11px;line-height:16px;'>This is an automated message from ScanIt &mdash; please don&#39;t reply.</p>" +
                 "</div>" +
+
                 "</div>" +
                 "</div>",
-                LOGO_URL, intro, code);
+                LOGO_URL, intro, digitBoxesHtml(code));
+    }
+
+    /** Renders each digit of the code in its own box, mirroring the app's own OTP input UI. */
+    private String digitBoxesHtml(String code) {
+        StringBuilder cells = new StringBuilder();
+        for (int i = 0; i < code.length(); i++) {
+            cells.append(String.format(
+                    "<td style='width:44px;height:54px;border:2px solid #F0E4D4;border-radius:14px;background-color:#FFF8F0;text-align:center;vertical-align:middle;font-size:26px;font-weight:800;color:#1E1410;'>%s</td>",
+                    code.charAt(i)));
+            if (i < code.length() - 1) {
+                cells.append("<td style='width:8px;'></td>");
+            }
+        }
+        return cells.toString();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
