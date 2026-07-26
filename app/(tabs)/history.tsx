@@ -1,3 +1,4 @@
+import { AuthenticityBadge } from "@/components/Badge";
 import EmptyState from "@/components/EmptyState";
 import ScreenShell from "@/components/ui/ScreenShell";
 import { useTabBarInset } from "@/hooks/useTabBarInset";
@@ -11,15 +12,15 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import React, { useCallback, useEffect } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Linking,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    Linking,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 
 export default function HistoryScreen() {
@@ -119,7 +120,7 @@ function ScanCard({
   onPress: () => void;
   onSave: () => void;
 }) {
-  const { product, confidence, scannedAt } = scan;
+  const { product, authenticityStatus, confidence, scannedAt } = scan;
   const bestSeller = product.sellers?.[0];
 
   return (
@@ -161,13 +162,10 @@ function ScanCard({
 
         {/* Price + authenticity */}
         <View style={styles.metaRow}>
-          {product.price > 0 ? (
-            <Text style={styles.price}>
-              {formatPrice(product.price, product.currency)}
-            </Text>
-          ) : (
-            <Text style={styles.priceUnavailable}>Price unavailable</Text>
-          )}
+          <Text style={styles.price}>
+            {formatPrice(product.price, product.currency)}
+          </Text>
+          <AuthenticityBadge status={authenticityStatus} />
         </View>
 
         {/* Best seller hotline */}
@@ -292,11 +290,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.lg,
     fontWeight: Typography.weights.extrabold,
     color: Colors.primary,
-  },
-  priceUnavailable: {
-    fontSize: Typography.sizes.sm,
-    fontStyle: "italic",
-    color: Colors.textSecondary,
   },
   sellerRow: { flexDirection: "row", alignItems: "center", gap: 5 },
   sellerName: {

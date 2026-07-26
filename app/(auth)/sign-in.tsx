@@ -1,7 +1,7 @@
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import AuthScreenLayout from '@/components/ui/AuthScreenLayout';
-import { isGoogleSignInConfigured, useGoogleAuth } from '@/services/googleAuth';
+import { isGoogleSignInAvailableOnThisPlatform, useGoogleAuth } from '@/services/googleAuth';
 import { useAuthStore } from '@/stores/auth';
 import { Colors, Radii, Spacing, Typography } from '@/theme';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -9,13 +9,12 @@ import { Link, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function SignInScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+// Mounted only when isGoogleSignInAvailableOnThisPlatform() is true — useGoogleAuth() throws
+// synchronously if the current platform's client ID isn't configured, so it must not be
+// called at all (not just hidden) on a platform lacking one.
+function GoogleSignInSection({ onSuccess }: { onSuccess: () => void }) {
   const [googleLoading, setGoogleLoading] = useState(false);
-
-  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
+  const { loginWithGoogle } = useAuthStore();
   const { request: googleRequest, promptAsync: promptGoogle, idToken: googleIdToken } = useGoogleAuth();
 
   useEffect(() => {
@@ -24,9 +23,38 @@ export default function SignInScreen() {
       setGoogleLoading(true);
       const ok = await loginWithGoogle(googleIdToken);
       setGoogleLoading(false);
-      if (ok) router.replace('/(tabs)/explore');
+      if (ok) onSuccess();
     })();
-  }, [googleIdToken, loginWithGoogle]);
+  }, [googleIdToken, loginWithGoogle, onSuccess]);
+
+  return (
+    <>
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>OR</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <Button
+        label="Continue with Google"
+        onPress={() => promptGoogle()}
+        loading={googleLoading}
+        disabled={!googleRequest}
+        fullWidth
+        size="lg"
+        variant="outline"
+        icon={<Ionicons name="logo-google" size={18} color={Colors.text} />}
+      />
+    </>
+  );
+}
+
+export default function SignInScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  const { login, isLoading, error, clearError } = useAuthStore();
 
   const validate = () => {
     const e: typeof errors = {};
@@ -94,25 +122,8 @@ export default function SignInScreen() {
 
       <Button label="Sign In" onPress={handleLogin} loading={isLoading} fullWidth size="lg" variant="gradient" />
 
-      {isGoogleSignInConfigured() && (
-        <>
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <Button
-            label="Continue with Google"
-            onPress={() => promptGoogle()}
-            loading={googleLoading}
-            disabled={!googleRequest}
-            fullWidth
-            size="lg"
-            variant="outline"
-            icon={<Ionicons name="logo-google" size={18} color={Colors.text} />}
-          />
-        </>
+      {isGoogleSignInAvailableOnThisPlatform() && (
+        <GoogleSignInSection onSuccess={() => router.replace('/(tabs)/explore')} />
       )}
     </AuthScreenLayout>
   );

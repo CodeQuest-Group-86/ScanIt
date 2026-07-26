@@ -1,15 +1,22 @@
 /**
  * services/googleAuth.ts
  *
- * Google Sign-In via expo-auth-session's ID-token flow — no custom native module or
- * dev-client rebuild required, works in Expo Go. Inert (never prompts) until at least
- * one of EXPO_PUBLIC_GOOGLE_{WEB,IOS,ANDROID}_CLIENT_ID is set in .env.local.
+ * Google Sign-In via expo-auth-session's ID-token flow.
  *
- * Setup (Google Cloud Console): create an OAuth consent screen, then three OAuth
- * Client IDs (Web, iOS, Android) and put them in .env.local. See docs/DEPLOYMENT.md.
+ * IMPORTANT: expo-auth-session's native (Android/iOS) flow validates against your app's
+ * real package name / signing certificate — it cannot complete inside Expo Go, which is a
+ * shared shell app with its own identity (host.exp.exponent), not com.nonydev27.scanit.
+ * To actually test this on a device, use a development build (`eas build --profile
+ * development`) or a preview/production build, not Expo Go. It DOES work in `expo start
+ * --web` today, since the web flow only needs the Web client ID + a localhost redirect URI
+ * registered in Google Cloud Console.
+ *
+ * Setup (Google Cloud Console): create an OAuth consent screen, then OAuth Client ID(s),
+ * and put them in .env.local. See docs/DEPLOYMENT.md.
  */
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,6 +26,18 @@ const ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? ''
 
 export function isGoogleSignInConfigured(): boolean {
   return Boolean(WEB_CLIENT_ID || IOS_CLIENT_ID || ANDROID_CLIENT_ID);
+}
+
+/**
+ * expo-auth-session requires a client ID for the *current* platform specifically
+ * (androidClientId on Android, iosClientId on iOS, webClientId elsewhere) — it throws
+ * synchronously if that one is missing, even if another platform's ID is set. Use this
+ * (not isGoogleSignInConfigured) to decide whether to mount the Google button/hook at all.
+ */
+export function isGoogleSignInAvailableOnThisPlatform(): boolean {
+  if (Platform.OS === 'ios') return Boolean(IOS_CLIENT_ID);
+  if (Platform.OS === 'android') return Boolean(ANDROID_CLIENT_ID);
+  return Boolean(WEB_CLIENT_ID);
 }
 
 /**

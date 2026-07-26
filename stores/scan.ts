@@ -82,6 +82,7 @@ interface ScanState {
   quotaPeriodStart: number;
   isPremium: boolean;
   showPaywall: boolean;
+  paywallReason: 'quota' | 'feature';
   historyLoaded: boolean;
 
   analyze: (imageUri: string) => Promise<void>;
@@ -92,7 +93,7 @@ interface ScanState {
   loadHistory: () => Promise<void>;
   initQuota: () => Promise<void>;
   dismissPaywall: () => void;
-  requestPaywall: () => void;
+  requestPaywall: (reason?: 'quota' | 'feature') => void;
   setPremium: (isPremium: boolean) => void;
 }
 
@@ -112,6 +113,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   quotaPeriodStart: 0,
   isPremium: false,
   showPaywall: false,
+  paywallReason: 'quota',
   historyLoaded: false,
 
   // ── Init quota from AsyncStorage ─────────────────────────────────────────
@@ -140,7 +142,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   analyze: async (imageUri) => {
     const { totalScansUsed, dailyScansLimit, quotaPeriodStart, isPremium } = get();
     if (!isPremium && totalScansUsed >= dailyScansLimit) {
-      set({ showPaywall: true });
+      set({ showPaywall: true, paywallReason: 'quota' });
       return;
     }
 
@@ -155,7 +157,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
       if (!res.success || !res.data) {
         if (res.message === 'quota_exceeded') {
-          set({ isAnalyzing: false, analyzingStage: null, showPaywall: true });
+          set({ isAnalyzing: false, analyzingStage: null, showPaywall: true, paywallReason: 'quota' });
           return;
         }
         set({
@@ -195,7 +197,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
   analyzeBarcode: async (code) => {
     const { totalScansUsed, dailyScansLimit, quotaPeriodStart, isPremium } = get();
     if (!isPremium && totalScansUsed >= dailyScansLimit) {
-      set({ showPaywall: true });
+      set({ showPaywall: true, paywallReason: 'quota' });
       return;
     }
 
@@ -208,7 +210,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
       cancelStages();
       if (!res.success || !res.data) {
         if (res.message === 'quota_exceeded') {
-          set({ isAnalyzing: false, analyzingStage: null, showPaywall: true });
+          set({ isAnalyzing: false, analyzingStage: null, showPaywall: true, paywallReason: 'quota' });
           return;
         }
         set({ isAnalyzing: false, analyzingStage: null, error: 'Product not found in database.' });
@@ -253,7 +255,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
 
   dismissPaywall: () => set({ showPaywall: false }),
 
-  requestPaywall: () => set({ showPaywall: true }),
+  requestPaywall: (reason = 'feature') => set({ showPaywall: true, paywallReason: reason }),
 
   setPremium: async (isPremium: boolean) => {
     const { totalScansUsed, quotaPeriodStart } = get();

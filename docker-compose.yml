@@ -62,7 +62,7 @@ services:
       MAIL_PASSWORD: ""
       FRONTEND_URL: http://localhost:19006
       # Google Sign-In — paste the Client ID(s) from Google Cloud Console here once created.
-      GOOGLE_OAUTH_WEB_CLIENT_ID: ""
+      GOOGLE_OAUTH_WEB_CLIENT_ID: "161201380753-68fkqf2p0thqtikujdv9tssntt7rq1ch.apps.googleusercontent.com"
       GOOGLE_OAUTH_IOS_CLIENT_ID: ""
       GOOGLE_OAUTH_ANDROID_CLIENT_ID: ""
     ports:

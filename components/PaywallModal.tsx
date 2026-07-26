@@ -20,10 +20,12 @@ const PERKS = [
 ];
 
 export default function PaywallModal() {
-  const { showPaywall, dismissPaywall, totalScansUsed, dailyScansLimit, setPremium } = useScanStore();
+  const { showPaywall, paywallReason, dismissPaywall, totalScansUsed, dailyScansLimit, setPremium } = useScanStore();
   const [showPaymentModal, setShowPaymentModal] = React.useState(false);
 
   if (!showPaywall) return null;
+
+  const isQuota = paywallReason === 'quota';
 
   const handleSubscribe = () => {
     setShowPaymentModal(true);
@@ -60,9 +62,15 @@ export default function PaywallModal() {
               <View style={styles.iconWrap}>
                 <Ionicons name="scan-outline" size={32} color={Colors.white} />
               </View>
-              <Text style={styles.title}>{'You'}{'\u2019'}ve used today{'’'}s{'\n'}free scans</Text>
+              <Text style={styles.title}>
+                {isQuota
+                  ? <>{'You'}{'\u2019'}ve used today{'’'}s{'\n'}free scans</>
+                  : <>Barcode Mode is a{'\n'}Premium feature</>}
+              </Text>
               <Text style={styles.subtitle}>
-                {totalScansUsed}/{dailyScansLimit} free scans used today · Upgrade for more
+                {isQuota
+                  ? `${totalScansUsed}/${dailyScansLimit} free scans used today · Upgrade for more`
+                  : 'Upgrade to Premium to unlock instant barcode scanning'}
               </Text>
             </View>
 
