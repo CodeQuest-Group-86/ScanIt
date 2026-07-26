@@ -49,6 +49,11 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(authService.refreshToken(request.getRefreshToken())));
     }
 
+    @PostMapping("/oauth/google")
+    public ResponseEntity<ApiResponse<AuthResponse>> googleAuth(@Valid @RequestBody GoogleAuthRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Login successful", authService.googleSignIn(request.getIdToken())));
+    }
+
     /** Returns the authenticated user's profile from their JWT. */
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserDto>> getMe(Authentication authentication) {

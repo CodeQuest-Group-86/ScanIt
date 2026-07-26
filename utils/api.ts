@@ -20,7 +20,7 @@ export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080
  */
 const REQUEST_TIMEOUT_MS = 200000;
 
-function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+export function fetchWithTimeout(input: string, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
@@ -83,10 +83,16 @@ async function doRefresh(): Promise<string | null> {
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
+  /**
+   * Override the default 200s cold-start timeout. Use a short value (~8-12s) for calls
+   * that have a fast local fallback (e.g. the scan endpoints) so a sleeping Render
+   * instance doesn't block the UI — fail fast and let the fallback take over instead.
+   */
+  timeoutMs?: number;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { skipAuth, ...fetchOptions } = options;
+  const { skipAuth, timeoutMs, ...fetchOptions } = options;
 
   // Don't default Content-Type for FormData — let fetch set the multipart boundary
   const isFormData = fetchOptions.body instanceof FormData;
@@ -106,7 +112,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       headers: token
         ? { ...headers, Authorization: `Bearer ${token}` }
         : headers,
-    });
+    }, timeoutMs);
 
   let response: Response;
   try {

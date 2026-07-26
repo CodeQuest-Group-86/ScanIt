@@ -48,7 +48,7 @@ public class SecurityConfig {
                         // Public auth endpoints
                         .requestMatchers("/auth/sign-up", "/auth/sign-in", "/auth/forgot-password",
                                          "/auth/reset-password", "/auth/refresh-token",
-                                         "/auth/otp/**").permitAll()
+                                         "/auth/oauth/google", "/auth/otp/**").permitAll()
                         // Health check (Railway / Docker)
                         .requestMatchers("/actuator/health").permitAll()
                         // H2 console (dev only)

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { useAuthStore } from '@/stores/auth';
 import { authService } from '@/services/auth';
 import Button from '@/components/Button';
@@ -13,12 +15,48 @@ import { getInitials } from '@/utils/format';
 export default function EditProfileScreen() {
   const { user, updateUser } = useAuthStore();
   const [name, setName] = useState(user?.name ?? '');
+  const [avatarUri, setAvatarUri] = useState<string | null>(user?.avatarUrl ?? null);
   const [loading, setLoading] = useState(false);
+  const [pickingPhoto, setPickingPhoto] = useState(false);
+
+  const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission denied', 'Photo library access is required to change your profile picture.');
+      return;
+    }
+
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (picked.canceled || !picked.assets[0]) return;
+
+    setPickingPhoto(true);
+    try {
+      const result = await ImageManipulator.manipulateAsync(
+        picked.assets[0].uri,
+        [{ resize: { width: 256, height: 256 } }],
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+      );
+      if (!result.base64) throw new Error('No base64 data returned');
+      setAvatarUri(`data:image/jpeg;base64,${result.base64}`);
+    } catch {
+      Alert.alert('Error', 'Could not process that photo. Please try a different one.');
+    } finally {
+      setPickingPhoto(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!name.trim()) { Alert.alert('Error', 'Name cannot be empty'); return; }
     setLoading(true);
-    const res = await authService.updateProfile({ name: name.trim() });
+    const res = await authService.updateProfile({
+      name: name.trim(),
+      avatarUrl: avatarUri ?? undefined,
+    });
     setLoading(false);
     if (!res.success) {
       Alert.alert('Error', res.message ?? 'Could not update profile. Please try again.');
@@ -41,10 +79,20 @@ export default function EditProfileScreen() {
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.initials}>{getInitials(name || (user?.name ?? '?'))}</Text>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.initials}>{getInitials(name || (user?.name ?? '?'))}</Text>
+            )}
           </View>
-          <TouchableOpacity style={styles.changeAvatarBtn}>
-            <Text style={styles.changeAvatarText}>Change photo</Text>
+          <TouchableOpacity
+            style={styles.changeAvatarBtn}
+            onPress={handlePickAvatar}
+            disabled={pickingPhoto}
+          >
+            <Text style={styles.changeAvatarText}>
+              {pickingPhoto ? 'Processing…' : 'Change photo'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -84,7 +132,8 @@ const styles = StyleSheet.create({
   title: { fontSize: Typography.sizes.lg, fontWeight: Typography.weights.bold, color: Colors.text },
   scroll: { padding: Spacing.lg, gap: Spacing.xl },
   avatarSection: { alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.lg },
-  avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  avatarImage: { width: 96, height: 96 },
   initials: { fontSize: Typography.sizes.xxl, fontWeight: Typography.weights.bold, color: Colors.white },
   changeAvatarBtn: {},
   changeAvatarText: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.medium },

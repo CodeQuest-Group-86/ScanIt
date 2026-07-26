@@ -1,18 +1,32 @@
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import AuthScreenLayout from '@/components/ui/AuthScreenLayout';
+import { isGoogleSignInConfigured, useGoogleAuth } from '@/services/googleAuth';
 import { useAuthStore } from '@/stores/auth';
 import { Colors, Radii, Spacing, Typography } from '@/theme';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Link, router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
+  const { request: googleRequest, promptAsync: promptGoogle, idToken: googleIdToken } = useGoogleAuth();
+
+  useEffect(() => {
+    if (!googleIdToken) return;
+    (async () => {
+      setGoogleLoading(true);
+      const ok = await loginWithGoogle(googleIdToken);
+      setGoogleLoading(false);
+      if (ok) router.replace('/(tabs)/explore');
+    })();
+  }, [googleIdToken, loginWithGoogle]);
 
   const validate = () => {
     const e: typeof errors = {};
@@ -33,9 +47,9 @@ export default function SignInScreen() {
 
   return (
     <AuthScreenLayout
-      lottie="auth-login"
       title="Welcome back"
       subtitle="Sign in to scan products, compare Ghana prices, and verify authenticity."
+      centered
       footer={
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>{"Don't have an account? "}</Text>
@@ -79,6 +93,27 @@ export default function SignInScreen() {
       </TouchableOpacity>
 
       <Button label="Sign In" onPress={handleLogin} loading={isLoading} fullWidth size="lg" variant="gradient" />
+
+      {isGoogleSignInConfigured() && (
+        <>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Button
+            label="Continue with Google"
+            onPress={() => promptGoogle()}
+            loading={googleLoading}
+            disabled={!googleRequest}
+            fullWidth
+            size="lg"
+            variant="outline"
+            icon={<Ionicons name="logo-google" size={18} color={Colors.text} />}
+          />
+        </>
+      )}
     </AuthScreenLayout>
   );
 }
@@ -97,4 +132,7 @@ const styles = StyleSheet.create({
   footerRow: { flexDirection: 'row', alignItems: 'center' },
   footerText: { fontSize: Typography.sizes.md, color: Colors.textSecondary },
   link: { fontSize: Typography.sizes.md, color: Colors.primary, fontWeight: Typography.weights.bold },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  dividerLine: { flex: 1, height: 1, backgroundColor: Colors.border },
+  dividerText: { fontSize: Typography.sizes.xs, fontWeight: Typography.weights.bold, color: Colors.textSecondary, letterSpacing: 0.6 },
 });

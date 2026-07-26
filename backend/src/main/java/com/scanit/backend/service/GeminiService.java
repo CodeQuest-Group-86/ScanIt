@@ -45,7 +45,7 @@ public class GeminiService {
     // ── Public records ────────────────────────────────────────────────────────
 
     public record ProductInfo(String name, String brand, String category, String description,
-                               int confidence, String authenticity) {}
+                               int confidence, String authenticity, String authenticityReason) {}
 
     public record ResearchSeller(String name, String url, String location, double price,
                                   String phone, String whatsapp) {
@@ -458,9 +458,10 @@ public class GeminiService {
         " \"category\":\"<Electronics|Clothing|Food|Drinks|Personal Care|Home|Stationery|Health|Tools|General>\",\n" +
         " \"description\":\"<2-3 sentences describing what this product is and its main use>\",\n" +
         " \"confidence\":<integer 50-99>,\n" +
-        " \"authenticity\":\"<authentic|suspicious|counterfeit>\"}\n\n" +
+        " \"authenticity\":\"<authentic|suspicious|counterfeit>\",\n" +
+        " \"authenticityReason\":\"<1-3 sentences citing SPECIFIC visual cues you actually observed in THIS photo — print sharpness, logo alignment/spacing, packaging material and finish, spelling accuracy, hologram/seal presence, color accuracy. Describe what you saw, not a generic disclaimer. If authentic, explain what looks genuine; if suspicious/counterfeit, explain exactly what looks wrong and how it would differ from the genuine product.>\"}\n\n" +
         "Only return empty name if the image is completely blank, a person only (no product), or totally unrecognisable.\n" +
-        "If no clear product: {\"name\":\"\",\"brand\":\"\",\"category\":\"General\",\"description\":\"\",\"confidence\":0,\"authenticity\":\"authentic\"}";
+        "If no clear product: {\"name\":\"\",\"brand\":\"\",\"category\":\"General\",\"description\":\"\",\"confidence\":0,\"authenticity\":\"authentic\",\"authenticityReason\":\"\"}";
 
     // ── Parsers ───────────────────────────────────────────────────────────────
 
@@ -484,7 +485,8 @@ public class GeminiService {
             json.path("category").asText("General").trim(),
             json.path("description").asText("").trim(),
             confidence,
-            authenticity
+            authenticity,
+            json.path("authenticityReason").asText("").trim()
         );
     }
 

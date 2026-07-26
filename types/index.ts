@@ -104,6 +104,9 @@ export interface ScanResult {
   confidence: number;
   scannedAt: string;
   authenticityStatus: AuthenticityStatus;
+  /** AI-generated explanation of the authenticity read (premium feature) — specific visual
+   *  cues observed, not a canned disclaimer. Absent for barcode-only lookups. */
+  authenticityReason?: string;
   imageUri?: string;
   /** AI model breakdown — populated when AI pipeline is used */
   aiAnalysis?: AIAnalysisResult;

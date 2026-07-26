@@ -1,5 +1,9 @@
 package com.scanit.backend.service;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import com.scanit.backend.dto.UserDto;
 import com.scanit.backend.dto.auth.*;
 import com.scanit.backend.entity.User;
@@ -19,7 +23,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -40,6 +47,13 @@ public class AuthService {
 
     @Value("${app.jwt.access-token-expiration:3600000}")
     private long accessTokenExpiration;
+
+    @Value("${google.oauth.web-client-id:}")
+    private String googleWebClientId;
+    @Value("${google.oauth.ios-client-id:}")
+    private String googleIosClientId;
+    @Value("${google.oauth.android-client-id:}")
+    private String googleAndroidClientId;
 
     // ── Sign up ───────────────────────────────────────────────────────────────
 
@@ -91,6 +105,61 @@ public class AuthService {
 
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return buildAuthResponse(user);
+    }
+
+    // ── Google sign-in ────────────────────────────────────────────────────────
+
+    /**
+     * Verifies a Google ID token (signature + audience, via GoogleIdTokenVerifier — not
+     * Google's rate-limited tokeninfo endpoint), then finds or creates the matching user.
+     * The verifier is built per-call rather than as a Spring bean so a server with no
+     * Google client IDs configured yet fails only this one request, not app boot.
+     */
+    public AuthResponse googleSignIn(String idToken) {
+        List<String> audiences = Stream.of(googleWebClientId, googleIosClientId, googleAndroidClientId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toList());
+        if (audiences.isEmpty()) {
+            throw new BadRequestException("Google sign-in is not configured on this server yet.");
+        }
+
+        GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(), GsonFactory.getDefaultInstance())
+                .setAudience(audiences)
+                .build();
+
+        GoogleIdToken token;
+        try {
+            token = verifier.verify(idToken);
+        } catch (Exception e) {
+            throw new BadRequestException("Could not verify Google sign-in token: " + e.getMessage());
+        }
+        if (token == null) {
+            throw new BadRequestException("Invalid or expired Google sign-in token.");
+        }
+
+        GoogleIdToken.Payload payload = token.getPayload();
+        String email = payload.getEmail();
+        if (email == null || email.isBlank()) {
+            throw new BadRequestException("This Google account has no email to sign in with.");
+        }
+
+        User user = userRepository.findByEmail(email).orElseGet(() -> {
+            String name = (String) payload.get("name");
+            String picture = (String) payload.get("picture");
+            User created = User.builder()
+                    .name(name != null && !name.isBlank() ? name : email)
+                    .email(email)
+                    // Random bcrypt hash — satisfies the NOT NULL constraint but can never be
+                    // used to log in via password, so this account stays Google-only unless the
+                    // user later sets a password via "forgot password".
+                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                    .role(UserRole.CONSUMER)
+                    .avatarUrl(picture)
+                    .build();
+            return userRepository.save(created);
+        });
 
         return buildAuthResponse(user);
     }

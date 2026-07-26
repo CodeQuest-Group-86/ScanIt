@@ -11,7 +11,7 @@ import { getInitials } from "@/utils/format";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 interface RowItem {
   icon: keyof typeof Ionicons.glyphMap;
@@ -125,7 +125,11 @@ export default function ProfileScreen() {
         {/* Avatar + info */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.initials}>{getInitials(user.name)}</Text>
+            {user.avatarUrl ? (
+              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.initials}>{getInitials(user.name)}</Text>
+            )}
           </View>
           <Text style={styles.userName}>{user.name}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
@@ -270,7 +274,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.sm,
+    overflow: "hidden",
   },
+  avatarImage: { width: 88, height: 88 },
   initials: {
     fontSize: Typography.sizes.xxl,
     fontWeight: Typography.weights.bold,

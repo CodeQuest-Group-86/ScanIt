@@ -10,10 +10,12 @@
 
 import * as FileSystem from 'expo-file-system/legacy';
 import type { AuthenticityStatus } from '@/types';
+import { fetchWithTimeout } from '@/utils/api';
 
 const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY ?? '';
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_TIMEOUT_MS = 15000;
 
 export interface GeminiProductInfo {
   name: string;
@@ -22,6 +24,9 @@ export interface GeminiProductInfo {
   description: string;
   confidence: number;
   authenticity: AuthenticityStatus;
+  /** AI-generated explanation of the authenticity read (premium feature) — specific visual
+   *  cues observed, not a canned disclaimer. */
+  authenticityReason: string;
 }
 
 export interface GeminiResearch {
@@ -49,9 +54,10 @@ const IDENTIFY_PROMPT =
   '   Default to "authentic" when there is nothing suspicious to point to — do not guess counterfeit without a concrete visual reason.\n\n' +
   'Respond with ONLY this JSON (no markdown, no explanation):\n' +
   '{"name":"<specific product name>","brand":"<brand or Unknown>","category":"<Electronics|Clothing|Food|Drinks|Personal Care|Home|Stationery|Health|Tools|General>",' +
-  '"description":"<2-3 sentences>","confidence":<integer 50-99>,"authenticity":"<authentic|suspicious|counterfeit>"}\n\n' +
+  '"description":"<2-3 sentences>","confidence":<integer 50-99>,"authenticity":"<authentic|suspicious|counterfeit>",' +
+  '"authenticityReason":"<1-3 sentences citing SPECIFIC visual cues you actually observed in THIS photo — print sharpness, logo alignment/spacing, packaging material and finish, spelling accuracy, hologram/seal presence, color accuracy. Describe what you saw, not a generic disclaimer. If authentic, explain what looks genuine; if suspicious/counterfeit, explain exactly what looks wrong and how it would differ from the genuine product.>"}\n\n' +
   'Only return empty name if the image is blank, a person only, or totally unrecognisable.\n' +
-  'If no clear product: {"name":"","brand":"","category":"General","description":"","confidence":0,"authenticity":"authentic"}';
+  'If no clear product: {"name":"","brand":"","category":"General","description":"","confidence":0,"authenticity":"authentic","authenticityReason":""}';
 
 async function readImageBase64(uri: string): Promise<string | null> {
   try {
@@ -89,11 +95,11 @@ async function callGemini(body: object): Promise<string | null> {
     return null;
   }
   try {
-    const resp = await fetch(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
+    const resp = await fetchWithTimeout(`${GEMINI_URL}?key=${GEMINI_KEY}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    });
+    }, GEMINI_TIMEOUT_MS);
     if (!resp.ok) {
       const errBody = await resp.text().catch(() => '');
       console.warn(`[gemini] API error ${resp.status}:`, errBody.slice(0, 300));
@@ -163,6 +169,7 @@ export async function identifyProduct(imageUri: string, mimeType = 'image/jpeg')
       description: (parsed.description ?? '').trim(),
       confidence,
       authenticity,
+      authenticityReason: (parsed.authenticityReason ?? '').trim(),
     };
   } catch (e) {
     console.warn('[gemini] identifyProduct: failed to parse JSON from response:', text.slice(0, 200), e);

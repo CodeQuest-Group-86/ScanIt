@@ -3,6 +3,32 @@ import type { AIAnalysisResult, ScanResult } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
+/** Cycles `analyzingStage` through a few lines of copy while a scan is in flight, so a
+ *  longer wait (e.g. a cold backend falling back to on-device AI) still feels alive
+ *  instead of stuck on one static message. Returns a cleanup to cancel pending stages. */
+function scheduleStages(
+  stages: string[],
+  intervalMs: number,
+  set: (partial: Partial<ScanState>) => void,
+): () => void {
+  const timers = stages.slice(1).map((text, i) =>
+    setTimeout(() => set({ analyzingStage: text }), intervalMs * (i + 1)),
+  );
+  return () => timers.forEach(clearTimeout);
+}
+
+const ANALYZE_STAGES = [
+  'Analyzing your photo…',
+  'Identifying the product…',
+  'Finding the best prices…',
+  'Almost there…',
+];
+const BARCODE_STAGES = [
+  'Looking up barcode…',
+  'Fetching product details…',
+  'Almost done…',
+];
+
 const MAX_HISTORY = 50;
 const HISTORY_KEY = 'scanit_scan_history';
 const QUOTA_KEY = 'scanit_scan_quota';
@@ -66,6 +92,7 @@ interface ScanState {
   loadHistory: () => Promise<void>;
   initQuota: () => Promise<void>;
   dismissPaywall: () => void;
+  requestPaywall: () => void;
   setPremium: (isPremium: boolean) => void;
 }
 
@@ -118,16 +145,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
     }
 
     set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false,
-          analyzingStage: 'Analyzing your photo…' });
+          analyzingStage: ANALYZE_STAGES[0] });
+
+    const cancelStages = scheduleStages(ANALYZE_STAGES, 2200, set);
 
     try {
-      // Stage updates for UX (scan service runs product ID + price lookup)
-      const stageTimer = setTimeout(() => {
-        set({ analyzingStage: 'Finding the best prices…' });
-      }, 2500);
-
       const res = await scanService.analyzeImage(imageUri);
-      clearTimeout(stageTimer);
+      cancelStages();
 
       if (!res.success || !res.data) {
         if (res.message === 'quota_exceeded') {
@@ -161,6 +185,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
         totalScansUsed: newUsed,
       }));
     } catch (e: any) {
+      cancelStages();
       set({ isAnalyzing: false, analyzingStage: null, error: e?.message ?? 'Scan failed. Please try again.' });
     }
   },
@@ -174,10 +199,13 @@ export const useScanStore = create<ScanState>((set, get) => ({
       return;
     }
 
-    set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false, analyzingStage: 'Looking up barcode…' });
+    set({ isAnalyzing: true, error: null, currentResult: null, aiAnalysis: null, offlineMode: false, analyzingStage: BARCODE_STAGES[0] });
+
+    const cancelStages = scheduleStages(BARCODE_STAGES, 1800, set);
 
     try {
       const res = await scanService.scanBarcode(code);
+      cancelStages();
       if (!res.success || !res.data) {
         if (res.message === 'quota_exceeded') {
           set({ isAnalyzing: false, analyzingStage: null, showPaywall: true });
@@ -204,6 +232,7 @@ export const useScanStore = create<ScanState>((set, get) => ({
         totalScansUsed: newUsed,
       }));
     } catch (e: any) {
+      cancelStages();
       set({
         isAnalyzing: false,
         analyzingStage: null,
@@ -223,6 +252,8 @@ export const useScanStore = create<ScanState>((set, get) => ({
   resetSession: () => set({ sessionScans: 0, canScan: true, currentResult: null, aiAnalysis: null, offlineMode: false }),
 
   dismissPaywall: () => set({ showPaywall: false }),
+
+  requestPaywall: () => set({ showPaywall: true }),
 
   setPremium: async (isPremium: boolean) => {
     const { totalScansUsed, quotaPeriodStart } = get();

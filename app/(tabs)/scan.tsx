@@ -12,8 +12,10 @@
 
 import PaywallModal from "@/components/PaywallModal";
 import ScanBracket from "@/components/ScanBracket";
+import ScanLoadingScreen from "@/components/ScanLoadingScreen";
 import { useScanStore } from "@/stores/scan";
 import { Colors, Radii, Spacing, Typography } from "@/theme";
+import { warmUpBackend } from "@/utils/api";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   CameraView,
@@ -61,8 +63,17 @@ export default function ScanScreen() {
   // Remember if a barcode was already scanned this session (prevent double-fire)
   const lastBarcode = useRef<string | null>(null);
 
-  // Animate the scan line
+  // Ping the backend as soon as the scanner opens so a sleeping Render instance is
+  // already waking up by the time the user takes a photo or scans a barcode.
   useEffect(() => {
+    warmUpBackend();
+  }, []);
+
+  // Animate the scan line — pauses in place as soon as a capture is being analyzed,
+  // instead of continuing to sweep behind the loading screen.
+  useEffect(() => {
+    if (isAnalyzing) return;
+
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(scanLineAnim, {
@@ -81,7 +92,7 @@ export default function ScanScreen() {
     );
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [isAnalyzing, scanLineAnim]);
 
   // Navigate to result screen when result is ready
   useEffect(() => {
@@ -283,14 +294,9 @@ export default function ScanScreen() {
         </View>
       )}
 
-      {/* Analysing indicator */}
+      {/* Analysing — takes over the full screen */}
       {isAnalyzing && (
-        <View style={styles.analyzingPill} pointerEvents="none">
-          <View style={styles.analyzingDot} />
-          <Text style={styles.analyzingText}>
-            {analyzingStage ?? "Identifying product…"}
-          </Text>
-        </View>
+        <ScanLoadingScreen stage={analyzingStage ?? "Identifying product…"} />
       )}
 
       {/* Offline warning banner */}
@@ -298,8 +304,7 @@ export default function ScanScreen() {
         <View style={styles.offlineBanner} pointerEvents="none">
           <Ionicons name="sparkles-outline" size={16} color={Colors.accent} />
           <Text style={styles.offlineText}>
-            Identified on-device · Tap sellers to open Google in your
-            browser.
+            Identified on-device · Tap sellers to open Google in your browser.
           </Text>
         </View>
       )}
@@ -357,11 +362,15 @@ export default function ScanScreen() {
           </View>
         )}
 
-        {/* Mode toggle */}
+        {/* Mode toggle — switching into barcode mode is a premium feature */}
         <TouchableOpacity
-          onPress={() =>
-            setMode((m) => (m === "barcode" ? "photo" : "barcode"))
-          }
+          onPress={() => {
+            if (mode === "photo" && !isPremium) {
+              useScanStore.getState().requestPaywall();
+              return;
+            }
+            setMode((m) => (m === "barcode" ? "photo" : "barcode"));
+          }}
           style={styles.sideBtn}
           disabled={isAnalyzing}
         >
@@ -370,6 +379,11 @@ export default function ScanScreen() {
             size={26}
             color={isAnalyzing ? Colors.white + "40" : Colors.white}
           />
+          {mode === "photo" && !isPremium && (
+            <View style={styles.proBadge}>
+              <Ionicons name="lock-closed" size={9} color={Colors.white} />
+            </View>
+          )}
         </TouchableOpacity>
       </SafeAreaView>
     </View>
@@ -490,33 +504,6 @@ const styles = StyleSheet.create({
   },
   helperText: { color: Colors.white, fontSize: Typography.sizes.sm },
 
-  // Analysing
-  analyzingPill: {
-    position: "absolute",
-    top: "45%",
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.nearBlack + "EE",
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: Radii.pill,
-    borderWidth: 1,
-    borderColor: Colors.accent,
-  },
-  analyzingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Colors.accent,
-  },
-  analyzingText: {
-    color: Colors.accent,
-    fontSize: Typography.sizes.md,
-    fontWeight: Typography.weights.semibold,
-  },
-
   // Offline banner
   offlineBanner: {
     position: "absolute",
@@ -580,6 +567,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sideBtnHidden: { opacity: 0 },
+  proBadge: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.nearBlack,
+  },
 
   // Shutter (photo mode)
   shutter: {

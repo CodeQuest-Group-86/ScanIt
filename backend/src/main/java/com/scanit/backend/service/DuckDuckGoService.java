@@ -66,11 +66,14 @@ public class DuckDuckGoService {
             // against its host below, so "Jumia Ghana" (this list) and "jumia.com.gh" (a live
             // hit on the same domain) need to collide on the same key or both get added.
             seen.add(retailer.get("site"));
+            // Price 0 (not detectedPrice) — these are generic "search this retailer" links,
+            // not a confirmed listing for this exact product, so they must not all display
+            // the one scalar price this method happened to scrape from an unrelated snippet.
             sellers.add(new GeminiService.ResearchSeller(
                 rName,
                 buildGoogleSearchUrl(name, rName),
                 retailer.get("location"),
-                detectedPrice
+                0
             ));
         }
 

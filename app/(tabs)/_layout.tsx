@@ -12,6 +12,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textSecondary,
         sceneStyle: { backgroundColor: 'transparent' },
+        animation: 'shift',
       }}>
       <Tabs.Screen
         name="explore"

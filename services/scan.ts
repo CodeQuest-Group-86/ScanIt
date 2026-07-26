@@ -57,6 +57,7 @@ async function analyzeImageLocally(imageUri: string): Promise<ScanResult> {
     confidence: info.confidence,
     scannedAt: new Date().toISOString(),
     authenticityStatus: authenticity,
+    authenticityReason: info.authenticityReason || undefined,
     imageUri,
     offlineMode: true,
     googleSearchUrl: ddg.googleSearchUrl,
@@ -76,7 +77,10 @@ export const scanService = {
       const formData = new FormData();
       formData.append('image', { uri: imageUri, name: filename, type: mimeType } as any);
 
-      const backendResult = await api.postForm<ScanResult>('/scans/analyze', formData);
+      // Fail fast — a cold Render instance can take over a minute to wake, and this
+      // endpoint has a fast on-device fallback (Gemini + DuckDuckGo), so there's no
+      // reason to make the user wait for a cold start before falling back to it.
+      const backendResult = await api.postForm<ScanResult>('/scans/analyze', formData, { timeoutMs: 12000 });
       const product = backendResult.product.imageUrl
         ? backendResult.product
         : { ...backendResult.product, imageUrl: imageUri };
@@ -128,7 +132,9 @@ export const scanService = {
 
   async scanBarcode(code: string): Promise<ApiResponse<ScanResult>> {
     try {
-      const backendResult = await api.get<ScanResult>(`/scans/barcode/${code}`);
+      // Fail fast so a cold backend falls back to the offline cache quickly instead
+      // of leaving the user staring at the scan screen for a minute-plus.
+      const backendResult = await api.get<ScanResult>(`/scans/barcode/${code}`, { timeoutMs: 10000 });
       const data = { ...backendResult, confidence: 99 };
       cacheBarcodeResult(code, data).catch(() => null); // best-effort, don't block on it
       return { success: true, data };

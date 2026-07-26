@@ -14,11 +14,20 @@ interface AuthState {
   isInitialized: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: (idToken: string) => Promise<boolean>;
   signUp: (name: string, email: string, password: string, role: 'consumer' | 'seller', phoneNumber?: string) => Promise<boolean>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   clearError: () => void;
   updateUser: (updates: Partial<User>) => void;
+}
+
+async function persistSession(user: User, tokens: AuthTokens): Promise<void> {
+  await Promise.all([
+    SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
+    SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
+    SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)),
+  ]);
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -59,11 +68,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     const { user, tokens } = res.data;
-    await Promise.all([
-      SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
-      SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)),
-    ]);
+    await persistSession(user, tokens);
+    set({ user, tokens, isLoading: false, error: null });
+    return true;
+  },
+
+  loginWithGoogle: async (idToken) => {
+    set({ isLoading: true, error: null });
+    const res = await authService.loginWithGoogle(idToken);
+    if (!res.success) {
+      set({ isLoading: false, error: res.message ?? 'Google sign-in failed' });
+      return false;
+    }
+    const { user, tokens } = res.data;
+    await persistSession(user, tokens);
     set({ user, tokens, isLoading: false, error: null });
     return true;
   },
@@ -76,11 +94,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
     const { user, tokens } = res.data;
-    await Promise.all([
-      SecureStore.setItemAsync(ACCESS_TOKEN_KEY, tokens.accessToken),
-      SecureStore.setItemAsync(REFRESH_TOKEN_KEY, tokens.refreshToken),
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)),
-    ]);
+    await persistSession(user, tokens);
     set({ user, tokens, isLoading: false, error: null });
     return true;
   },

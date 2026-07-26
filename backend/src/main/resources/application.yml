@@ -56,3 +56,12 @@ resend:
 # The PUBLIC key goes in the app's EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY instead (safe to ship).
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:}
+
+# ── Google Sign-In — OAuth client IDs (one per platform, all issued from the same
+# Google Cloud OAuth consent screen). Blank until configured — AuthService.googleSignIn
+# rejects the request (not a boot failure) when none are set. ─────────────────────────
+google:
+  oauth:
+    web-client-id: ${GOOGLE_OAUTH_WEB_CLIENT_ID:}
+    ios-client-id: ${GOOGLE_OAUTH_IOS_CLIENT_ID:}
+    android-client-id: ${GOOGLE_OAUTH_ANDROID_CLIENT_ID:}

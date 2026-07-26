@@ -16,6 +16,7 @@ import {
 import Animated, {
   Easing,
   FadeInDown,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -27,13 +28,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export type AuthLottieKey = 'auth-login' | 'auth-signup' | 'auth-forgot' | 'auth-verify' | 'smart' | 'loading';
 
 interface AuthScreenLayoutProps {
-  lottie: AuthLottieKey;
+  lottie?: AuthLottieKey;
   title: string;
   subtitle: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   headerExtra?: React.ReactNode;
   compact?: boolean;
+  /** Vertically centers the hero + form within the viewport instead of pinning it to the top. */
+  centered?: boolean;
   contentStyle?: ViewStyle;
 }
 
@@ -48,6 +51,7 @@ export default function AuthScreenLayout({
   footer,
   headerExtra,
   compact = false,
+  centered = false,
   contentStyle,
 }: AuthScreenLayoutProps) {
   const float = useSharedValue(0);
@@ -94,23 +98,27 @@ export default function AuthScreenLayout({
         >
           <ScrollView
             style={styles.flex}
-            contentContainerStyle={[styles.scroll, contentStyle]}
+            contentContainerStyle={[styles.scroll, centered && styles.scrollCentered, contentStyle]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             bounces
           >
             <Animated.View entering={FadeInDown.springify().damping(18).stiffness(90)} style={styles.hero}>
-              <Animated.View style={[styles.glowRing, ringStyle]} />
-              <Animated.View style={[styles.lottieWrap, heroStyle]}>
-                <GlassCard intensity={58} tint="light" padded={false} style={styles.lottieGlass}>
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.55)', `${Colors.primary}12`]}
-                    style={styles.lottieGradient}
-                  >
-                    <LottieAnim source={lottie} size={lottieSize} />
-                  </LinearGradient>
-                </GlassCard>
-              </Animated.View>
+              {lottie ? (
+                <>
+                  <Animated.View style={[styles.glowRing, ringStyle]} />
+                  <Animated.View style={[styles.lottieWrap, heroStyle]}>
+                    <GlassCard intensity={58} tint="light" padded={false} style={styles.lottieGlass}>
+                      <LinearGradient
+                        colors={['rgba(255,255,255,0.55)', `${Colors.primary}12`]}
+                        style={styles.lottieGradient}
+                      >
+                        <LottieAnim source={lottie} size={lottieSize} />
+                      </LinearGradient>
+                    </GlassCard>
+                  </Animated.View>
+                </>
+              ) : null}
 
               <View style={styles.logoRow}>
                 <Text style={styles.logoScan}>Scan</Text>
@@ -121,7 +129,10 @@ export default function AuthScreenLayout({
               {headerExtra}
             </Animated.View>
 
-            <Animated.View entering={FadeInDown.delay(120).springify().damping(16)}>
+            <Animated.View
+              entering={FadeInDown.delay(120).springify().damping(16)}
+              layout={LinearTransition.springify().damping(18).stiffness(140)}
+            >
               <GlassCard intensity={52} tint="light" style={styles.formCard}>
                 {children}
               </GlassCard>
@@ -147,6 +158,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xxxl,
+  },
+  scrollCentered: {
+    justifyContent: 'center',
   },
   hero: {
     alignItems: 'center',

@@ -115,6 +115,15 @@
             <version>4.12.0</version>
         </dependency>
 
+        <!-- Google API client — verifies Google Sign-In ID tokens (signature + audience)
+             server-side via GoogleIdTokenVerifier, rather than hitting Google's rate-limited
+             tokeninfo endpoint. -->
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+            <version>2.6.0</version>
+        </dependency>
+
         <!-- Bucket4j — in-memory token-bucket rate limiting (no Redis needed at this scale) -->
         <dependency>
             <groupId>com.bucket4j</groupId>

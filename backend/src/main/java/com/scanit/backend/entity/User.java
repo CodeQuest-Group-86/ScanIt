@@ -38,6 +38,9 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private UserRole role;
 
+    /** Stored as a base64 data URI (no object-storage account needed) — widened to TEXT
+     *  since Hibernate's default VARCHAR(255) is far too small to hold one. */
+    @Column(columnDefinition = "TEXT")
     private String avatarUrl;
 
     @Column(nullable = false)

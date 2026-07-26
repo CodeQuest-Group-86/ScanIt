@@ -6,7 +6,10 @@
  */
 
 import type { Seller } from '@/types';
+import { fetchWithTimeout } from '@/utils/api';
 import { buildDuckDuckGoUrl, buildProductGoogleUrl, buildSellerGoogleUrl } from '@/utils/links';
+
+const DDG_TIMEOUT_MS = 6000;
 
 export interface DdgResult {
   title: string;
@@ -79,14 +82,14 @@ function parseHtmlResults(html: string): DdgResult[] {
 /** Query DuckDuckGo HTML lite search (no API key required). */
 export async function searchWeb(query: string): Promise<DdgResult[]> {
   try {
-    const resp = await fetch('https://html.duckduckgo.com/html/', {
+    const resp = await fetchWithTimeout('https://html.duckduckgo.com/html/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': 'Mozilla/5.0 (compatible; ScanIt/1.0)',
       },
       body: `q=${encodeURIComponent(query)}`,
-    });
+    }, DDG_TIMEOUT_MS);
     if (!resp.ok) return [];
     return parseHtmlResults(await resp.text());
   } catch {
@@ -160,10 +163,13 @@ export async function searchProduct(
       whatsapp: '',
       url: buildSellerGoogleUrl(productName, retailer.name),
       directUrl: retailerSearchUrl(retailer.site, productName),
-      verified: true,
+      // Not a confirmed listing for this exact product — a generic "search this retailer"
+      // link, so it must not claim to be verified or show the one scalar price this
+      // function happened to scrape from an unrelated snippet.
+      verified: false,
       rating: 0,
       reviewCount: 0,
-      price: detectedPrice,
+      price: undefined,
     });
   }
 

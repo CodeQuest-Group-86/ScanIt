@@ -37,5 +37,11 @@ public class ScanResult {
     @Enumerated(EnumType.STRING)
     private AuthenticityStatus authenticityStatus;
 
+    /** AI-generated explanation of the authenticity read (premium feature) — specific visual
+     *  cues observed (print sharpness, logo alignment, packaging material, etc.), not a canned
+     *  disclaimer. Null for barcode-only lookups, since those never call Gemini Vision. */
+    @Column(columnDefinition = "TEXT")
+    private String authenticityReason;
+
     private String imageUri;
 }

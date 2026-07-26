@@ -90,6 +90,19 @@ export const authService = {
     }
   },
 
+  async loginWithGoogle(idToken: string): Promise<ApiResponse<{ user: User; tokens: AuthTokens }>> {
+    try {
+      const data = await api.post<BackendAuthResponse>(
+        '/auth/oauth/google',
+        { idToken },
+        { skipAuth: true }
+      );
+      return { success: true, data: { user: data.user, tokens: mapTokens(data) } };
+    } catch (e: any) {
+      return { success: false, message: e.message ?? 'Google sign-in failed', data: null as never };
+    }
+  },
+
   async forgotPassword(email: string): Promise<ApiResponse<null>> {
     try {
       await api.post('/auth/forgot-password', { email }, { skipAuth: true });

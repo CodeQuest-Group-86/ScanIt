@@ -93,8 +93,13 @@ export default function ScanResultScreen() {
     );
   }
 
-  const { product, authenticityStatus, googleSearchUrl, duckDuckGoSearchUrl } =
-    currentResult;
+  const {
+    product,
+    authenticityStatus,
+    authenticityReason,
+    googleSearchUrl,
+    duckDuckGoSearchUrl,
+  } = currentResult;
   const googleUrl =
     googleSearchUrl ?? buildProductGoogleUrl(product.name, product.brand);
 
@@ -285,37 +290,53 @@ export default function ScanResultScreen() {
             ) : null}
           </ReanimatedView.View>
 
-          {/* Authenticity — premium feature */}
+          {/* Authenticity — premium feature: full reasoning for every status, not just
+              a badge, so the paid tier actually explains WHY. */}
           {isPremium ? (
-            authenticityStatus !== "authentic" && (
-              <ReanimatedView.View
-                entering={FadeInUp.duration(400).delay(140)}
-                style={[
-                  styles.warningBox,
-                  authenticityStatus === "counterfeit" && styles.dangerBox,
-                ]}
-              >
-                <Ionicons
-                  name="warning-outline"
-                  size={18}
-                  color={
-                    authenticityStatus === "counterfeit"
-                      ? Colors.danger
+            <ReanimatedView.View
+              entering={FadeInUp.duration(400).delay(140)}
+              style={[
+                styles.warningBox,
+                authenticityStatus === "counterfeit" && styles.dangerBox,
+                authenticityStatus === "authentic" && styles.successBox,
+              ]}
+            >
+              <Ionicons
+                name={
+                  authenticityStatus === "authentic"
+                    ? "shield-checkmark-outline"
+                    : "warning-outline"
+                }
+                size={18}
+                color={
+                  authenticityStatus === "counterfeit"
+                    ? Colors.danger
+                    : authenticityStatus === "authentic"
+                      ? Colors.success
                       : Colors.warning
-                  }
-                />
+                }
+              />
+              <View style={{ flex: 1 }}>
                 <Text
                   style={[
                     styles.warningText,
                     authenticityStatus === "counterfeit" && styles.dangerText,
+                    authenticityStatus === "authentic" && styles.successText,
                   ]}
                 >
                   {authenticityStatus === "counterfeit"
                     ? "This product may be counterfeit. Do not purchase."
-                    : "Authenticity uncertain. Verify before buying."}
+                    : authenticityStatus === "authentic"
+                      ? "This product looks authentic."
+                      : "Authenticity uncertain. Verify before buying."}
                 </Text>
-              </ReanimatedView.View>
-            )
+                {authenticityReason ? (
+                  <Text style={styles.authenticityReasonText}>
+                    {authenticityReason}
+                  </Text>
+                ) : null}
+              </View>
+            </ReanimatedView.View>
           ) : (
             <ReanimatedView.View entering={FadeInUp.duration(400).delay(140)}>
               <TouchableOpacity onPress={handleUpgrade} activeOpacity={0.9}>
@@ -774,6 +795,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.danger + "15",
     borderLeftColor: Colors.danger,
   },
+  successBox: {
+    backgroundColor: Colors.success + "15",
+    borderLeftColor: Colors.success,
+  },
   warningText: {
     flex: 1,
     fontSize: Typography.sizes.sm,
@@ -781,6 +806,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   dangerText: { color: Colors.danger },
+  successText: { color: Colors.success },
+  authenticityReasonText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 4,
+  },
   lockedBadge: {
     flexDirection: "row",
     alignItems: "center",

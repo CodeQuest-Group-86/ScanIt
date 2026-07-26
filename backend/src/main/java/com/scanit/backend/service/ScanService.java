@@ -222,6 +222,8 @@ public class ScanService {
                         .product(matched)
                         .confidence(confidence)
                         .authenticityStatus(scanAuthenticity)
+                        .authenticityReason(gemini.authenticityReason() != null && !gemini.authenticityReason().isBlank()
+                                ? gemini.authenticityReason() : null)
                         .imageUri("upload")
                         .build()
         );
@@ -266,7 +268,7 @@ public class ScanService {
                 ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
                 if (research == null && !ddgSearch.snippets().isEmpty()) {
                     research = geminiService.researchFromSnippets(
-                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null),
+                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null, null),
                         ddgSearch.snippets()
                     );
                 }
@@ -472,7 +474,9 @@ public class ScanService {
                             .phone(s.phone() != null ? s.phone() : "")
                             .whatsapp(s.whatsapp() != null ? s.whatsapp() : "")
                             .url(s.url() != null && !s.url().isBlank() ? s.url() : null)
-                            .verified(true)
+                            // Not a confirmed marketplace listing — AI/web-search-derived, unlike
+                            // the DB-backed `Product`/`Seller` `verified` flags in ProductService.
+                            .verified(false)
                             .rating(0.0)
                             .reviewCount(0)
                             .price(s.price())
@@ -509,6 +513,7 @@ public class ScanService {
                 .confidence(r.getConfidence())
                 .scannedAt(r.getScannedAt() != null ? r.getScannedAt().toString() : Instant.now().toString())
                 .authenticityStatus(r.getAuthenticityStatus().name().toLowerCase())
+                .authenticityReason(r.getAuthenticityReason())
                 .imageUri(r.getImageUri())
                 .googleSearchUrl(ddgSearch != null ? ddgSearch.googleSearchUrl()
                     : DuckDuckGoService.buildProductGoogleUrl(r.getProduct().getName(), r.getProduct().getBrand()))
