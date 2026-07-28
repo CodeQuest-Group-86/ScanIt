@@ -144,9 +144,13 @@ public class ScanService {
         }
 
         // Step 2.5: CompuGhana — a real live price, not a search-snippet guess. Replaces
-        // the generic CompuGhana entry DuckDuckGoService adds for every product.
+        // the generic CompuGhana entry DuckDuckGoService adds for every product. Skipped for
+        // non-electronics categories: CompuGhana is an electronics-only retailer, and its
+        // fuzzy product-suggest search will still return SOME "closest match" result for a
+        // query like "sugar" or "slippers" even though it doesn't actually stock that item.
         try {
-            List<CompuGhanaService.Listing> compuGhanaResults = compuGhanaService.search(gemini.name());
+            List<CompuGhanaService.Listing> compuGhanaResults = isElectronicsCategory(gemini.category())
+                    ? compuGhanaService.search(gemini.name()) : List.of();
             if (!compuGhanaResults.isEmpty()) {
                 CompuGhanaService.Listing best = compuGhanaResults.get(0);
                 GeminiService.ResearchSeller realSeller = new GeminiService.ResearchSeller(
@@ -392,6 +396,12 @@ public class ScanService {
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    private boolean isElectronicsCategory(String category) {
+        if (category == null) return false;
+        String c = category.toLowerCase();
+        return c.contains("electronic") || c.contains("tool");
+    }
 
     private record MatchResult(Product product, boolean isNew) {}
 

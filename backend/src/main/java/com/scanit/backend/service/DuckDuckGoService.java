@@ -23,13 +23,36 @@ public class DuckDuckGoService {
     private static final Pattern SNIPPET_PATTERN =
         Pattern.compile("class=\"result__snippet\"[^>]*>([\\s\\S]*?)</a>");
 
-    private static final List<Map<String, String>> GHANA_RETAILERS = List.of(
+    /** Electronics/tools: the import-heavy online retailers that actually stock this stuff. */
+    private static final List<Map<String, String>> ELECTRONICS_RETAILERS = List.of(
+        Map.of("name", "Jumia Ghana", "site", "jumia.com.gh", "location", "Online · Nationwide"),
+        Map.of("name", "CompuGhana", "site", "compughana.com", "location", "Online · Electronics"),
+        Map.of("name", "Franko Trading", "site", "frankotrading.com", "location", "Accra · Electronics"),
+        Map.of("name", "Kikuu Ghana", "site", "kikuu.com", "location", "Online · Budget Import")
+    );
+
+    /** Food/drinks/groceries: nobody buys sugar on Jumia's classifieds or an electronics
+     *  importer — supermarkets and open markets are where these actually get sold. */
+    private static final List<Map<String, String>> GROCERY_RETAILERS = List.of(
+        Map.of("name", "Jumia Ghana", "site", "jumia.com.gh", "location", "Online · Nationwide"),
+        Map.of("name", "Melcom", "site", "melcom.com", "location", "Nationwide · Supermarket"),
+        Map.of("name", "MaxMart", "site", "maxmartonline.com", "location", "Accra · Supermarket")
+    );
+
+    /** Everything else (clothing, personal care, home, stationery, health, general goods —
+     *  e.g. slippers): the general online marketplaces, not electronics-only stores. */
+    private static final List<Map<String, String>> GENERAL_RETAILERS = List.of(
         Map.of("name", "Jumia Ghana", "site", "jumia.com.gh", "location", "Online · Nationwide"),
         Map.of("name", "Tonaton Ghana", "site", "tonaton.com", "location", "Online · Classifieds"),
-        Map.of("name", "Kikuu Ghana", "site", "kikuu.com", "location", "Online · Budget Import"),
-        Map.of("name", "CompuGhana", "site", "compughana.com", "location", "Online · Electronics"),
-        Map.of("name", "Franko Trading", "site", "frankotrading.com", "location", "Accra · Electronics")
+        Map.of("name", "Kikuu Ghana", "site", "kikuu.com", "location", "Online · Budget Import")
     );
+
+    private static List<Map<String, String>> retailersFor(String category) {
+        String c = category == null ? "" : category.toLowerCase();
+        if (c.contains("electronic") || c.contains("tool")) return ELECTRONICS_RETAILERS;
+        if (c.contains("food") || c.contains("drink") || c.contains("snack") || c.contains("grocery")) return GROCERY_RETAILERS;
+        return GENERAL_RETAILERS;
+    }
 
     private final OkHttpClient http = new OkHttpClient();
 
@@ -60,7 +83,7 @@ public class DuckDuckGoService {
         List<GeminiService.ResearchSeller> sellers = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        for (Map<String, String> retailer : GHANA_RETAILERS) {
+        for (Map<String, String> retailer : retailersFor(category)) {
             String rName = retailer.get("name");
             // Seed with the domain, not the display name — a dynamic search hit is checked
             // against its host below, so "Jumia Ghana" (this list) and "jumia.com.gh" (a live

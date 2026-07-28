@@ -253,13 +253,52 @@ public class GeminiService {
 
     // ── Gemini Research (Google Search grounding — real live prices) ──────────
 
+    /** Picks a category-appropriate set of Ghanaian retailers to search — an electronics
+     *  importer has no sugar and a supermarket has no phones, so forcing every product
+     *  through the same fixed retailer list (as this used to) produced sellers that don't
+     *  actually stock the item. */
+    private String categoryBucket(String category) {
+        String c = category == null ? "" : category.toLowerCase();
+        if (c.contains("electronic") || c.contains("tool")) return "electronics";
+        if (c.contains("food") || c.contains("drink") || c.contains("snack") || c.contains("grocery")) return "grocery";
+        return "general";
+    }
+
+    private String retailerScope(String category) {
+        return switch (categoryBucket(category)) {
+            case "electronics" -> "Search multiple major Ghanaian electronics retailers — Jumia Ghana " +
+                "(jumia.com.gh), Kikuu Ghana, CompuGhana, Franko Trading — and Tonaton Ghana for used/second-hand " +
+                "listings.";
+            case "grocery" -> "Search Ghanaian supermarkets and grocery retailers — Jumia Ghana (jumia.com.gh) " +
+                "Supermarket section, Melcom, MaxMart — and local Ghanaian markets (Makola Market Accra, Kejetia " +
+                "Market Kumasi, Madina Market). Do not search electronics importers or classifieds sites for a " +
+                "grocery item.";
+            default -> "Search multiple major Ghanaian retailers — Jumia Ghana (jumia.com.gh), Kikuu Ghana, " +
+                "Tonaton Ghana — and local Ghanaian shops/markets (Accra, Kumasi, Tamale).";
+        };
+    }
+
+    private String requiredSellersBlock(String category, String encodedName) {
+        return switch (categoryBucket(category)) {
+            case "electronics" -> "" +
+                "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n";
+            case "grocery" -> "" +
+                "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- Include real supermarket/local-market sellers you actually found (Melcom, MaxMart, Makola Market, Kejetia Market, etc.) — never invent one you didn't verify sells this item\n";
+            default -> "" +
+                "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- Always include: {\"name\":\"Tonaton Ghana\",\"url\":\"https://tonaton.com/en_GH/search?q=" + encodedName + "\",\"location\":\"Online · Classifieds\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n";
+        };
+    }
+
     private ProductResearch callGeminiResearch(String name, String brand, String category) throws Exception {
         String encodedName = name.replace(" ", "+");
 
         String prompt =
             "Search for the current retail price and full product specs of \"" + name + "\" by \"" + brand + "\" (" + category + ") in Ghana (GHS). " +
-            "Search multiple major Ghanaian retailers — Jumia Ghana (jumia.com.gh), Kikuu Ghana, Tonaton Ghana, " +
-            "CompuGhana, Franko Trading — and local Ghanaian markets (Accra, Kumasi, Tamale). Don't rely on just one " +
+            retailerScope(category) + " Don't rely on just one " +
             "store: priceGhsTypical should be a representative price across whichever of these actually have a real " +
             "listing, not automatically whichever store happens to be searched first.\n\n" +
             "Also try to find each seller's real, publicly-listed customer service phone number and/or WhatsApp " +
@@ -285,9 +324,9 @@ public class GeminiService {
             "}\n\n" +
             "Requirements:\n" +
             "- Include every seller you found with real prices in GHS\n" +
-            "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
-            "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
-            "- Always include: {\"name\":\"Tonaton Ghana\",\"url\":\"https://tonaton.com/en_GH/search?q=" + encodedName + "\",\"location\":\"Online · Classifieds\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+            "- Only include sellers that would realistically stock this exact kind of product — don't list an " +
+            "electronics importer for groceries or a supermarket for a phone\n" +
+            requiredSellersBlock(category, encodedName) +
             "- specs: include EVERY spec you can find — 6-15 attributes minimum\n" +
             "- All price values must be plain numbers (no currency symbols)\n" +
             "- Only set a seller's price to 0 if you genuinely could not find one after searching — do not default to 0 out of caution\n" +
@@ -392,6 +431,30 @@ public class GeminiService {
 
     // ── OpenRouter Research (training-data prices — no live search) ───────────
 
+    /** Same category-appropriate reasoning as {@link #requiredSellersBlock}, but this path has
+     *  no live search grounding, so every seller here is a training-data guess rather than a
+     *  verified listing — all the more reason not to hand back an electronics importer for a
+     *  bag of sugar. */
+    private String fallbackSellersJson(String category, String encodedName) {
+        return switch (categoryBucket(category)) {
+            case "electronics" -> "" +
+                "    {\"name\": \"Jumia Ghana\", \"url\": \"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\", \"location\": \"Online · Nationwide\", \"price\": <number>},\n" +
+                "    {\"name\": \"Kikuu Ghana\", \"url\": \"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\", \"location\": \"Online · Budget Import\", \"price\": <number>},\n" +
+                "    {\"name\": \"CompuGhana\", \"url\": \"https://compughana.com/search?q=" + encodedName + "\", \"location\": \"Online · Electronics\", \"price\": <number>},\n" +
+                "    {\"name\": \"Tonaton Ghana\", \"url\": \"https://tonaton.com/en_GH/search?q=" + encodedName + "\", \"location\": \"Online · Classifieds (used)\", \"price\": <number>}\n";
+            case "grocery" -> "" +
+                "    {\"name\": \"Jumia Ghana\", \"url\": \"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\", \"location\": \"Online · Nationwide\", \"price\": <number>},\n" +
+                "    {\"name\": \"Melcom\", \"url\": \"\", \"location\": \"Nationwide · Supermarket\", \"price\": <number>},\n" +
+                "    {\"name\": \"Makola Market\", \"url\": \"\", \"location\": \"Accra · Makola Market\", \"price\": <number>},\n" +
+                "    {\"name\": \"Kejetia Market\", \"url\": \"\", \"location\": \"Kumasi · Kejetia Market\", \"price\": <number>}\n";
+            default -> "" +
+                "    {\"name\": \"Jumia Ghana\", \"url\": \"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\", \"location\": \"Online · Nationwide\", \"price\": <number>},\n" +
+                "    {\"name\": \"Kikuu Ghana\", \"url\": \"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\", \"location\": \"Online · Budget Import\", \"price\": <number>},\n" +
+                "    {\"name\": \"Tonaton Ghana\", \"url\": \"https://tonaton.com/en_GH/search?q=" + encodedName + "\", \"location\": \"Online · Classifieds\", \"price\": <number>},\n" +
+                "    {\"name\": \"Makola Market\", \"url\": \"\", \"location\": \"Accra · Makola Market\", \"price\": <number>}\n";
+        };
+    }
+
     private ProductResearch callOpenRouterResearch(String name, String brand, String category) throws Exception {
         String encodedName = name.replace(" ", "+");
         String prompt =
@@ -403,14 +466,11 @@ public class GeminiService {
             "  \"priceGhsMax\": <number>,\n" +
             "  \"priceGhsTypical\": <number>,\n" +
             "  \"sellers\": [\n" +
-            "    {\"name\": \"Jumia Ghana\", \"url\": \"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\", \"location\": \"Online · Nationwide\", \"price\": <number>},\n" +
-            "    {\"name\": \"Kikuu Ghana\", \"url\": \"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\", \"location\": \"Online · Budget Import\", \"price\": <number>},\n" +
-            "    {\"name\": \"Tonaton Ghana\", \"url\": \"https://tonaton.com/en_GH/search?q=" + encodedName + "\", \"location\": \"Online · Classifieds\", \"price\": <number>},\n" +
-            "    {\"name\": \"Makola Market\", \"url\": \"\", \"location\": \"Accra · Makola Market\", \"price\": <number>},\n" +
-            "    {\"name\": \"Kejetia Market\", \"url\": \"\", \"location\": \"Kumasi · Kejetia Market\", \"price\": <number>}\n" +
+            fallbackSellersJson(category, encodedName) +
             "  ]\n" +
             "}\n" +
-            "Rules: 4-7 specs, realistic 2025 Ghana GHS prices, include AliExpress for electronics.";
+            "Rules: 4-7 specs, realistic 2025 Ghana GHS prices. Only list sellers that would realistically stock " +
+            "this exact kind of product.";
 
         String body = mapper.writeValueAsString(Map.of(
             "model", "google/gemini-2.0-flash-lite:free",
