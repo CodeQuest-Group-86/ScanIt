@@ -10,15 +10,12 @@ import com.twilio.Twilio;
 import com.twilio.rest.verify.v2.service.Verification;
 import com.twilio.rest.verify.v2.service.VerificationCheck;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -27,28 +24,18 @@ public class OtpService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
     @Value("${twilio.account-sid:}") private String twilioAccountSid;
     @Value("${twilio.auth-token:}")  private String twilioAuthToken;
     @Value("${twilio.verify.service-sid:}") private String twilioServiceSid;
 
-    @Value("${resend.api-key:}") private String resendApiKey;
-    @Value("${resend.from:onboarding@resend.dev}") private String resendFrom;
-
     private static final int OTP_TTL_SECONDS = 600; // 10 minutes
 
-    /** Publicly hosted so email clients can fetch it — served from this app's own static resources. */
-    private static final String LOGO_URL = "https://scanit-raij.onrender.com/api/v1/logo.png";
-
-    /** Explicit timeout — without one, OkHttp's defaults can let a slow/stuck Resend
-     *  call hang well past the client's own request timeout instead of failing fast. */
-    private final OkHttpClient resendClient = new OkHttpClient.Builder()
-            .callTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-            .build();
-
-    public OtpService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public OtpService(UserRepository userRepository, PasswordEncoder passwordEncoder, EmailService emailService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
     // ── Send OTP ──────────────────────────────────────────────────────────────
@@ -184,7 +171,7 @@ public class OtpService {
         String code = generateCode();
         saveLocalOtp(user, purpose, code);
 
-        if (resendApiKey.isBlank()) {
+        if (!emailService.isConfigured()) {
             log.warn("Resend not configured — dev OTP for {}: {}", email, code);
             return code; // returned to frontend for dev pre-fill
         }
@@ -194,69 +181,19 @@ public class OtpService {
         String intro = isSignup
                 ? "Enter this code to verify your email and finish creating your account."
                 : "Enter this code to reset your ScanIt password.";
-        String body = buildOtpEmailHtml(intro, code);
 
-        String json = String.format(
-                "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
-                resendFrom, email, subject, body.replace("\"", "\\\""));
-
-        Request request = new Request.Builder()
-                .url("https://api.resend.com/emails")
-                .addHeader("Authorization", "Bearer " + resendApiKey)
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(json, MediaType.get("application/json")))
-                .build();
-
-        try (Response response = resendClient.newCall(request).execute()) {
-            if (!response.isSuccessful()) {
-                String resendBody = response.body() != null ? response.body().string() : "(no body)";
-                log.error("Resend failed ({}) from='{}': {}", response.code(), resendFrom, resendBody);
-                throw new BadRequestException(
-                        "Email send failed (Resend " + response.code() + "): " + resendBody);
-            }
-        } catch (IOException e) {
-            log.error("Resend IO error: {}", e.getMessage());
-            throw new BadRequestException("Failed to send email (network error): " + e.getMessage());
-        }
+        emailService.send(email, subject, buildOtpEmailHtml(intro, code));
         return null;
     }
 
-    /**
-     * Attribute values here MUST use single quotes, not double — the whole
-     * result gets `"` escaped when it's embedded into the outer JSON payload
-     * above, so any double quotes in the markup would come out mangled.
-     */
     private String buildOtpEmailHtml(String intro, String code) {
-        return String.format(
-                // Outer canvas — soft warm gradient, matches the app's cream/orange surface tones
-                "<div style='background-color:#FAF0E4;background-image:linear-gradient(180deg,#FFF6EC 0%%,#FAF0E4 55%%,#F2E0C8 100%%);padding:40px 16px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;'>" +
-                "<div style='max-width:440px;margin:0 auto;background-color:#FFFFFF;border-radius:28px;overflow:hidden;box-shadow:0 20px 40px rgba(62,44,35,0.14);'>" +
-
-                // ── Header banner ──
-                "<div style='background-color:#E8682A;background-image:linear-gradient(135deg,#FF9A5C 0%%,#E8682A 55%%,#C4521A 100%%);padding:44px 24px 32px;text-align:center;'>" +
-                "<table role='presentation' align='center' cellpadding='0' cellspacing='0' style='margin:0 auto;'><tr><td style='background-color:#FFFFFF;border-radius:22px;padding:14px;box-shadow:0 10px 24px rgba(0,0,0,0.18);'>" +
-                "<img src='%s' width='52' height='52' alt='ScanIt' style='display:block;border-radius:12px;' />" +
-                "</td></tr></table>" +
-                "<p style='margin:20px 0 0;color:#FFFFFF;font-size:24px;font-weight:800;letter-spacing:0.3px;'>Scan<span style='color:#FFE3CC;'>It</span></p>" +
-                "<p style='margin:6px 0 0;color:rgba(255,255,255,0.88);font-size:12px;font-weight:500;letter-spacing:0.2px;'>Know it&#39;s real before you buy it</p>" +
-                "</div>" +
-
-                // ── Body ──
+        String body =
                 "<div style='padding:36px 32px 8px;text-align:center;'>" +
-                "<p style='margin:0 0 28px;color:#7A6050;font-size:15px;line-height:22px;'>%s</p>" +
-                "<table role='presentation' align='center' cellpadding='0' cellspacing='0'><tr>%s</tr></table>" +
+                "<p style='margin:0 0 28px;color:#7A6050;font-size:15px;line-height:22px;'>" + intro + "</p>" +
+                "<table role='presentation' align='center' cellpadding='0' cellspacing='0'><tr>" + digitBoxesHtml(code) + "</tr></table>" +
                 "<p style='margin:28px 0 0;color:#A89080;font-size:13px;line-height:20px;'>Expires in 10 minutes. Do not share this code with anyone &mdash; ScanIt staff will never ask for it.</p>" +
-                "</div>" +
-
-                // ── Footer ──
-                "<div style='padding:28px 32px 32px;text-align:center;'>" +
-                "<div style='height:1px;background-color:#F0E4D4;margin:0 0 20px;'></div>" +
-                "<p style='margin:0;color:#C4B5A5;font-size:11px;line-height:16px;'>This is an automated message from ScanIt &mdash; please don&#39;t reply.</p>" +
-                "</div>" +
-
-                "</div>" +
-                "</div>",
-                LOGO_URL, intro, digitBoxesHtml(code));
+                "</div>";
+        return emailService.emailShell(body);
     }
 
     /** Renders each digit of the code in its own box, mirroring the app's own OTP input UI. */

@@ -1,3 +1,4 @@
+import { paymentService } from '@/services/payment';
 import { scanService } from '@/services/scan';
 import type { AIAnalysisResult, ScanResult } from '@/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -95,6 +96,7 @@ interface ScanState {
   dismissPaywall: () => void;
   requestPaywall: (reason?: 'quota' | 'feature') => void;
   setPremium: (isPremium: boolean) => void;
+  syncPremiumFromServer: () => Promise<void>;
 }
 
 export const useScanStore = create<ScanState>((set, get) => ({
@@ -262,6 +264,21 @@ export const useScanStore = create<ScanState>((set, get) => ({
     const quota: QuotaRecord = { totalScans: totalScansUsed, isPremium, periodStart: quotaPeriodStart };
     await saveQuota(quota);
     set({ isPremium, showPaywall: false });
+  },
+
+  // Reconciles the locally cached premium flag with the backend's authoritative
+  // subscription record — corrects drift from an expired subscription (the client
+  // never flips isPremium to false on its own) or a fresh install/reinstall where
+  // AsyncStorage doesn't yet reflect a subscription the server already knows about.
+  syncPremiumFromServer: async () => {
+    try {
+      const res = await paymentService.getSubscriptionStatus();
+      if (res.success && res.data && res.data.isActive !== get().isPremium) {
+        await get().setPremium(res.data.isActive);
+      }
+    } catch {
+      // Offline or backend unreachable — keep the locally cached premium state.
+    }
   },
 
   loadHistory: async () => {

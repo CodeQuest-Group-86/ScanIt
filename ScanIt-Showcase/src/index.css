@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Brand — lifted directly from the ScanIt app's theme/index.ts */
+  --color-primary: #e8682a;
+  --color-primary-light: #ff8c4a;
+  --color-primary-dark: #c4521a;
+  --color-accent: #1a9ed4;
+  --color-accent-light: #4dbfed;
+
+  --color-surface: #faf0e4;
+  --color-surface-deep: #f2e0c8;
+  --color-near-black: #12100e;
+
+  --color-ink: #1e1410;
+  --color-ink-secondary: #7a6050;
+  --color-ink-muted: #a89080;
+
+  --color-border: #e8d5c0;
+  --color-border-light: #f0e4d4;
+
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: white;
+}

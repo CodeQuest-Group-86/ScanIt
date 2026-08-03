@@ -7,6 +7,7 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.scanit.backend.dto.UserDto;
 import com.scanit.backend.dto.auth.*;
 import com.scanit.backend.entity.User;
+import com.scanit.backend.enums.NotificationType;
 import com.scanit.backend.enums.UserRole;
 import com.scanit.backend.exception.BadRequestException;
 import com.scanit.backend.exception.ResourceNotFoundException;
@@ -38,12 +39,18 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final JavaMailSender mailSender;
+    private final NotificationService notificationService;
 
     @Value("${app.mail.from:noreply@scanit.app}")
     private String mailFrom;
 
     @Value("${app.frontend.url:http://localhost:19006}")
     private String frontendUrl;
+
+    /** Unset by default — the community notification below is skipped entirely until
+     *  this is configured, rather than shipping a broken/placeholder invite link. */
+    @Value("${community.whatsapp-url:}")
+    private String communityWhatsappUrl;
 
     @Value("${app.jwt.access-token-expiration:3600000}")
     private long accessTokenExpiration;
@@ -93,6 +100,7 @@ public class AuthService {
             user = userRepository.save(user);
         }
 
+        notifyCommunityInvite(user);
         return buildAuthResponse(user);
     }
 
@@ -145,7 +153,11 @@ public class AuthService {
             throw new BadRequestException("This Google account has no email to sign in with.");
         }
 
-        User user = userRepository.findByEmail(email).orElseGet(() -> {
+        java.util.Optional<User> existing = userRepository.findByEmail(email);
+        User user;
+        if (existing.isPresent()) {
+            user = existing.get();
+        } else {
             String name = (String) payload.get("name");
             String picture = (String) payload.get("picture");
             User created = User.builder()
@@ -158,8 +170,9 @@ public class AuthService {
                     .role(UserRole.CONSUMER)
                     .avatarUrl(picture)
                     .build();
-            return userRepository.save(created);
-        });
+            user = userRepository.save(created);
+            notifyCommunityInvite(user);
+        }
 
         return buildAuthResponse(user);
     }
@@ -237,6 +250,23 @@ public class AuthService {
                 .totalSaved(user.getTotalSaved())
                 .createdAt(user.getCreatedAt() != null ? user.getCreatedAt().toString() : null)
                 .build();
+    }
+
+    /** No-op until community.whatsapp-url is configured — never ships a placeholder/broken link. */
+    private void notifyCommunityInvite(User user) {
+        if (communityWhatsappUrl == null || communityWhatsappUrl.isBlank()) return;
+        try {
+            notificationService.notify(
+                    user,
+                    "Join the ScanIt Community!",
+                    "We've started a ScanIt community on WhatsApp — swap tips on how best to scan items, " +
+                            "talk pricing, and help each other spot counterfeits. Tap to join: " + communityWhatsappUrl,
+                    NotificationType.COMMUNITY
+            );
+        } catch (Exception e) {
+            // Never let a notification failure break sign-up itself.
+            log.warn("Failed to send community invite notification to {}: {}", user.getEmail(), e.getMessage());
+        }
     }
 
     private void sendPasswordResetEmail(String to, String name, String token) {

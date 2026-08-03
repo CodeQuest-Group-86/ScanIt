@@ -57,6 +57,12 @@ resend:
 paystack:
   secret-key: ${PAYSTACK_SECRET_KEY:}
 
+# ── Community — invite link sent as an in-app notification to new sign-ups ────────────
+# Blank until set — AuthService skips the notification entirely rather than send a
+# placeholder/broken link. Set to the chat.whatsapp.com invite link once the group exists.
+community:
+  whatsapp-url: ${COMMUNITY_WHATSAPP_URL:}
+
 # ── Google Sign-In — OAuth client IDs (one per platform, all issued from the same
 # Google Cloud OAuth consent screen). Blank until configured — AuthService.googleSignIn
 # rejects the request (not a boot failure) when none are set. ─────────────────────────

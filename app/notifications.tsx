@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -13,13 +13,24 @@ const NOTIF_ICONS: Record<Notification['type'], keyof typeof Ionicons.glyphMap> 
   price_alert: 'trending-down-outline',
   new_seller: 'storefront-outline',
   system: 'information-circle-outline',
+  community: 'people-outline',
 };
 
 const NOTIF_COLORS: Record<Notification['type'], string> = {
   price_alert: Colors.success,
   new_seller: Colors.accent,
   system: Colors.primary,
+  community: Colors.primary,
 };
+
+const URL_PATTERN = /https?:\/\/\S+/;
+
+/** Any notification body may contain a link (e.g. a community invite) — this pulls
+ *  it out so the card can be tappable without every notification needing a schema change. */
+function extractUrl(body: string): string | null {
+  const match = body.match(URL_PATTERN);
+  return match ? match[0].replace(/[.,)]+$/, '') : null;
+}
 
 export default function NotificationsScreen() {
   const { notifications, loadNotifications } = useProductsStore();
@@ -66,7 +77,9 @@ export default function NotificationsScreen() {
 function NotifCard({ notif }: { notif: Notification }) {
   const color = NOTIF_COLORS[notif.type];
   const icon = NOTIF_ICONS[notif.type];
-  return (
+  const url = extractUrl(notif.body);
+
+  const card = (
     <View style={[styles.card, !notif.read && styles.cardUnread]}>
       {!notif.read && <View style={styles.unreadDot} />}
       <View style={[styles.iconWrap, { backgroundColor: color + '20' }]}>
@@ -77,7 +90,15 @@ function NotifCard({ notif }: { notif: Notification }) {
         <Text style={styles.notifBody} numberOfLines={2}>{notif.body}</Text>
         <Text style={styles.notifTime}>{formatRelativeTime(notif.timestamp)}</Text>
       </View>
+      {url && <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />}
     </View>
+  );
+
+  if (!url) return card;
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={() => Linking.openURL(url)}>
+      {card}
+    </TouchableOpacity>
   );
 }
 

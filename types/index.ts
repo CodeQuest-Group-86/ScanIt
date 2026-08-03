@@ -147,7 +147,7 @@ export interface Notification {
   body: string;
   read: boolean;
   timestamp: string;
-  type: 'price_alert' | 'system' | 'new_seller';
+  type: 'price_alert' | 'system' | 'new_seller' | 'community';
 }
 
 export interface InventoryItem {

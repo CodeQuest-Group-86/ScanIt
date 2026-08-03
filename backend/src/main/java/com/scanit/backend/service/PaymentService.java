@@ -19,7 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -35,6 +38,7 @@ public class PaymentService {
 
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     @Value("${paystack.secret-key:}") private String paystackSecretKey;
 
@@ -111,6 +115,18 @@ public class PaymentService {
                 NotificationType.SYSTEM
         );
 
+        try {
+            emailService.send(
+                    userEmail,
+                    "Payment received — welcome to ScanIt Premium!",
+                    buildPremiumWelcomeEmailHtml(req.getPlanId(), plan, user.getSubscriptionExpiresAt())
+            );
+        } catch (Exception e) {
+            // The payment already succeeded and the subscription is active — a failed
+            // receipt email is logged, not allowed to undo or fail the activation.
+            log.error("Failed to send premium welcome email to {}: {}", userEmail, e.getMessage());
+        }
+
         log.info("Subscription activated for {} — plan={} reference={}", userEmail, req.getPlanId(), req.getReference());
         return toDto(user);
     }
@@ -163,6 +179,43 @@ public class PaymentService {
             log.error("Paystack verify network error: {}", e.getMessage());
             throw new BadRequestException("Could not reach Paystack to verify payment. Try again.");
         }
+    }
+
+    private static final DateTimeFormatter EXPIRY_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH).withZone(ZoneOffset.UTC);
+
+    private String buildPremiumWelcomeEmailHtml(String planId, PlanSpec plan, Instant expiresAt) {
+        String planName = formatPlanName(planId);
+        String amount = String.format(Locale.ENGLISH, "GHS %.2f", plan.amountPesewas() / 100.0);
+        String expiryText = expiresAt != null ? EXPIRY_DATE_FORMAT.format(expiresAt) : "—";
+
+        String body =
+                "<div style='padding:36px 32px 8px;text-align:center;'>" +
+                "<p style='margin:0 0 6px;color:#1E1410;font-size:20px;font-weight:800;'>Payment received!</p>" +
+                "<p style='margin:0 0 28px;color:#7A6050;font-size:15px;line-height:22px;'>" +
+                "Thanks for upgrading &mdash; your payment of <strong>" + amount + "</strong> was successful and " +
+                "<strong>" + planName + "</strong> is now active on your account." +
+                "</p>" +
+                "<div style='background-color:#FFF8F0;border:2px solid #F0E4D4;border-radius:16px;padding:20px 24px;text-align:left;'>" +
+                "<p style='margin:0 0 8px;color:#A89080;font-size:12px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;'>Plan</p>" +
+                "<p style='margin:0 0 16px;color:#1E1410;font-size:16px;font-weight:700;'>" + planName + "</p>" +
+                "<p style='margin:0 0 8px;color:#A89080;font-size:12px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;'>Active until</p>" +
+                "<p style='margin:0;color:#1E1410;font-size:16px;font-weight:700;'>" + expiryText + "</p>" +
+                "</div>" +
+                "<p style='margin:28px 0 0;color:#A89080;font-size:13px;line-height:20px;'>Unlimited-tier scans, priority AI processing, advanced authenticity detection and every other Premium perk are unlocked right now &mdash; no need to restart the app.</p>" +
+                "</div>";
+        return emailService.emailShell(body);
+    }
+
+    private String formatPlanName(String planId) {
+        String[] words = planId.split("_");
+        StringBuilder sb = new StringBuilder();
+        for (String w : words) {
+            if (w.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
+        }
+        return sb.toString();
     }
 
     private SubscriptionStatusDto toDto(User user) {

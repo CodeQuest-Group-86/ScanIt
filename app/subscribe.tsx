@@ -1,11 +1,14 @@
 import { paymentService, PAYSTACK_PLANS } from "@/services/payment";
 import { useAuthStore } from "@/stores/auth";
+import { useScanStore } from "@/stores/scan";
 import { Colors, Radii, Spacing, Typography } from "@/theme";
+import { formatDate } from "@/utils/format";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StyleSheet,
@@ -19,10 +22,56 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const Subscribe = () => {
   const { user } = useAuthStore();
+  const isPremium = useScanStore((s) => s.isPremium);
+  const setPremium = useScanStore((s) => s.setPremium);
   const { popup } = usePaystack();
   const [selectedPlan, setSelectedPlan] = useState<string>(PAYSTACK_PLANS[0].id);
   const [processing, setProcessing] = useState(false);
   const [justPaid, setJustPaid] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<{ name: string; endDate?: string } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    if (!isPremium) return;
+    setLoadingStatus(true);
+    paymentService.getSubscriptionStatus().then((res) => {
+      if (res.success && res.data) {
+        setCurrentPlan({ name: res.data.plan?.name ?? "Premium", endDate: res.data.endDate });
+      }
+      setLoadingStatus(false);
+    });
+  }, [isPremium]);
+
+  const handleCancel = () => {
+    Alert.alert(
+      "Cancel Subscription",
+      "You'll lose access to Premium features immediately. You can resubscribe any time.",
+      [
+        { text: "Keep Premium", style: "cancel" },
+        {
+          text: "Cancel Subscription",
+          style: "destructive",
+          onPress: async () => {
+            setCancelling(true);
+            try {
+              const res = await paymentService.cancelSubscription();
+              if (res.success) {
+                await setPremium(false);
+                router.back();
+              } else {
+                Alert.alert("Error", res.message ?? "Could not cancel subscription. Try again.");
+              }
+            } catch (e: any) {
+              Alert.alert("Error", e.message ?? "Could not cancel subscription. Try again.");
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const selectedPlanData =
     PAYSTACK_PLANS.find((p) => p.id === selectedPlan) || PAYSTACK_PLANS[0];
@@ -51,6 +100,7 @@ const Subscribe = () => {
         try {
           const verifyRes = await paymentService.verifyPayment(reference, selectedPlan);
           if (verifyRes.success && verifyRes.data?.isActive) {
+            await setPremium(true);
             setJustPaid(true);
             setTimeout(() => {
               setJustPaid(false);
@@ -95,7 +145,7 @@ const Subscribe = () => {
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="close" size={28} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Upgrade to Premium</Text>
+        <Text style={styles.title}>{isPremium ? "Manage Subscription" : "Upgrade to Premium"}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -104,132 +154,163 @@ const Subscribe = () => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero Section */}
-        <Animated.View entering={FadeInDown.delay(100)} style={styles.hero}>
-          <View style={styles.iconContainer}>
-            <Ionicons name="diamond-outline" size={48} color={Colors.primary} />
-          </View>
-          <Text style={styles.heroTitle}>Unlock Unlimited Scans</Text>
-          <Text style={styles.heroSubtitle}>
-            Get the most out of ScanIt with premium features and unlimited
-            product scans
-          </Text>
-        </Animated.View>
-
-        {/* Features List */}
-        <Animated.View entering={FadeInDown.delay(200)} style={styles.features}>
-          {[
-            "Unlimited product scans",
-            "Priority AI processing",
-            "Advanced authenticity detection",
-            "Price history tracking",
-            "No advertisements",
-            "Exclusive seller insights",
-          ].map((feature, index) => (
-            <View key={index} style={styles.featureItem}>
-              <Ionicons
-                name="checkmark-circle"
-                size={20}
-                color={Colors.success}
-              />
-              <Text style={styles.featureText}>{feature}</Text>
+        {isPremium ? (
+          <Animated.View entering={FadeInDown.delay(100)} style={styles.hero}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="diamond" size={48} color={Colors.primary} />
             </View>
-          ))}
-        </Animated.View>
-
-        {/* Plans */}
-        <Animated.View
-          entering={FadeInDown.delay(300)}
-          style={styles.plansSection}
-        >
-          <Text style={styles.sectionTitle}>Choose Your Plan</Text>
-
-          {PAYSTACK_PLANS.map((plan) => (
-            <TouchableOpacity
-              key={plan.id}
-              style={[
-                styles.planCard,
-                selectedPlan === plan.id && styles.planCardSelected,
-              ]}
-              onPress={() => setSelectedPlan(plan.id)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.planHeader}>
-                <Text style={styles.planName}>{plan.name}</Text>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.currency}>GHS</Text>
-                  <Text style={styles.price}>{plan.amount}</Text>
-                  <Text style={styles.interval}>
-                    /{plan.interval === "monthly" ? "mo" : "yr"}
+            <Text style={styles.heroTitle}>You&apos;re on Premium</Text>
+            {loadingStatus ? (
+              <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.md }} />
+            ) : (
+              <>
+                <Text style={styles.heroSubtitle}>
+                  {currentPlan?.name ?? "Premium"}
+                  {currentPlan?.endDate ? ` · renews ${formatDate(currentPlan.endDate)}` : ""}
+                </Text>
+                <TouchableOpacity
+                  style={styles.cancelLink}
+                  onPress={handleCancel}
+                  disabled={cancelling}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.cancelLinkText}>
+                    {cancelling ? "Cancelling…" : "Cancel Subscription"}
                   </Text>
-                </View>
+                </TouchableOpacity>
+              </>
+            )}
+          </Animated.View>
+        ) : (
+          <>
+            {/* Hero Section */}
+            <Animated.View entering={FadeInDown.delay(100)} style={styles.hero}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="diamond-outline" size={48} color={Colors.primary} />
               </View>
+              <Text style={styles.heroTitle}>Unlock Unlimited Scans</Text>
+              <Text style={styles.heroSubtitle}>
+                Get the most out of ScanIt with premium features and unlimited
+                product scans
+              </Text>
+            </Animated.View>
 
-              {plan.interval === "yearly" && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Save 17%</Text>
-                </View>
-              )}
-
-              <View style={styles.planFeatures}>
-                {plan.features.slice(0, 4).map((feature, i) => (
-                  <View key={i} style={styles.planFeatureItem}>
-                    <Ionicons
-                      name="checkmark"
-                      size={16}
-                      color={Colors.primary}
-                    />
-                    <Text style={styles.planFeatureText}>{feature}</Text>
-                  </View>
-                ))}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
-
-        {/* CTA Button */}
-        <Animated.View entering={FadeInDown.delay(400)} style={styles.cta}>
-          <TouchableOpacity
-            style={[
-              styles.subscribeBtn,
-              processing && styles.subscribeBtnDisabled,
-            ]}
-            onPress={handleSubscribe}
-            disabled={processing}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={Colors.gradientPrimary as any}
-              style={styles.subscribeBtnGradient}
-            >
-              {processing ? (
-                <Text style={styles.subscribeBtnText}>Confirming payment…</Text>
-              ) : (
-                <>
-                  <Text style={styles.subscribeBtnText}>
-                    Subscribe for GHS {selectedPlanData.amount}
-                  </Text>
+            {/* Features List */}
+            <Animated.View entering={FadeInDown.delay(200)} style={styles.features}>
+              {[
+                "Unlimited product scans",
+                "Priority AI processing",
+                "Advanced authenticity detection",
+                "Price history tracking",
+                "No advertisements",
+                "Exclusive seller insights",
+              ].map((feature, index) => (
+                <View key={index} style={styles.featureItem}>
                   <Ionicons
-                    name="arrow-forward"
+                    name="checkmark-circle"
                     size={20}
-                    color={Colors.white}
+                    color={Colors.success}
                   />
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+                  <Text style={styles.featureText}>{feature}</Text>
+                </View>
+              ))}
+            </Animated.View>
 
-          <View style={styles.securedRow}>
-            <Ionicons
-              name="lock-closed"
-              size={12}
-              color={Colors.textSecondary}
-            />
-            <Text style={styles.disclaimer}>
-              Pay right here in the app · Secured by Paystack · Cancel anytime
-            </Text>
-          </View>
-        </Animated.View>
+            {/* Plans */}
+            <Animated.View
+              entering={FadeInDown.delay(300)}
+              style={styles.plansSection}
+            >
+              <Text style={styles.sectionTitle}>Choose Your Plan</Text>
+
+              {PAYSTACK_PLANS.map((plan) => (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[
+                    styles.planCard,
+                    selectedPlan === plan.id && styles.planCardSelected,
+                  ]}
+                  onPress={() => setSelectedPlan(plan.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.planHeader}>
+                    <Text style={styles.planName}>{plan.name}</Text>
+                    <View style={styles.priceContainer}>
+                      <Text style={styles.currency}>GHS</Text>
+                      <Text style={styles.price}>{plan.amount}</Text>
+                      <Text style={styles.interval}>
+                        /{plan.interval === "monthly" ? "mo" : "yr"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {plan.interval === "yearly" && (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>Save 17%</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.planFeatures}>
+                    {plan.features.slice(0, 4).map((feature, i) => (
+                      <View key={i} style={styles.planFeatureItem}>
+                        <Ionicons
+                          name="checkmark"
+                          size={16}
+                          color={Colors.primary}
+                        />
+                        <Text style={styles.planFeatureText}>{feature}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </Animated.View>
+
+            {/* CTA Button */}
+            <Animated.View entering={FadeInDown.delay(400)} style={styles.cta}>
+              <TouchableOpacity
+                style={[
+                  styles.subscribeBtn,
+                  processing && styles.subscribeBtnDisabled,
+                ]}
+                onPress={handleSubscribe}
+                disabled={processing}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={Colors.gradientPrimary as any}
+                  style={styles.subscribeBtnGradient}
+                >
+                  {processing ? (
+                    <Text style={styles.subscribeBtnText}>Confirming payment…</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.subscribeBtnText}>
+                        Subscribe for GHS {selectedPlanData.amount}
+                      </Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={20}
+                        color={Colors.white}
+                      />
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <View style={styles.securedRow}>
+                <Ionicons
+                  name="lock-closed"
+                  size={12}
+                  color={Colors.textSecondary}
+                />
+                <Text style={styles.disclaimer}>
+                  Pay right here in the app · Secured by Paystack · Cancel anytime
+                </Text>
+              </View>
+            </Animated.View>
+          </>
+        )}
       </ScrollView>
 
       {/* Success overlay — shown briefly once the backend confirms the subscription */}
@@ -316,6 +397,16 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: "center",
     lineHeight: 22,
+  },
+  cancelLink: {
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  cancelLinkText: {
+    fontSize: Typography.sizes.sm,
+    fontWeight: Typography.weights.semibold,
+    color: Colors.danger,
   },
   features: {
     marginBottom: Spacing.xxl,

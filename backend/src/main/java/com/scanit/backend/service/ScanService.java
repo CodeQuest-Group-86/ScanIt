@@ -93,109 +93,11 @@ public class ScanService {
         MatchResult match = findOrCreateProduct(gemini);
         Product matched = match.product();
 
-        // Step 2: Gemini with real-time Google Search grounding — the only path that can
-        // actually surface a live Jumia Ghana price (Jumia returns 403 to direct server-side
-        // scraping — see CompuGhanaService's comment on the same issue). This method's prompt
-        // already prioritizes Jumia, but nothing was calling it: analyzeImage only ever called
-        // researchFromSnippets below, which has no search grounding and never asks for Jumia
-        // specifically, and depends on a DuckDuckGo snippet happening to contain a literal
-        // "GHS 123" — rare. That's why priceTypical kept coming back 0 regardless of prompt
-        // wording. Fixed here by actually invoking the grounded method first.
-        GeminiService.ProductResearch research = null;
-        try {
-            research = geminiService.researchProduct(gemini.name(), gemini.brand(), gemini.category());
-        } catch (Exception e) {
-            log.warn("Gemini grounded research failed: {}", e.getMessage());
-        }
-
-        // Step 2.5: DuckDuckGo — supplementary sellers/snippets, and the fallback research
-        // path when grounded search above returned nothing usable.
-        DuckDuckGoService.ProductSearch ddgSearch = null;
-        try {
-            ddgSearch = duckDuckGoService.searchProduct(gemini.name(), gemini.brand(), gemini.category());
-            if (research == null && !ddgSearch.snippets().isEmpty()) {
-                research = geminiService.researchFromSnippets(gemini, ddgSearch.snippets());
-            }
-            if (research == null && ddgSearch.detectedPrice() > 0) {
-                research = new GeminiService.ProductResearch(
-                    Map.of(), 0, 0, ddgSearch.detectedPrice(),
-                    ddgSearch.sellers()
-                );
-            } else if (research != null && ddgSearch.sellers() != null) {
-                // Research's own sellers (from grounded search) take priority — only add a
-                // DDG seller if one under (roughly) the same name isn't already present, so a
-                // real Jumia price from grounded search can't be duplicated or shadowed by a
-                // zero-price DDG placeholder of the same store.
-                List<GeminiService.ResearchSeller> merged = new ArrayList<>(
-                    research.sellers() != null ? research.sellers() : List.of());
-                for (GeminiService.ResearchSeller s : ddgSearch.sellers()) {
-                    if (merged.stream().noneMatch(m -> m.name().equalsIgnoreCase(s.name()))) {
-                        merged.add(s);
-                    }
-                }
-                research = new GeminiService.ProductResearch(
-                    research.specs(), research.priceMin(), research.priceMax(),
-                    research.priceTypical() > 0 ? research.priceTypical() : ddgSearch.detectedPrice(),
-                    merged
-                );
-            }
-        } catch (Exception e) {
-            log.warn("DuckDuckGo product search failed: {}", e.getMessage());
-        }
-
-        // Step 2.5: CompuGhana — a real live price, not a search-snippet guess. Replaces
-        // the generic CompuGhana entry DuckDuckGoService adds for every product. Skipped for
-        // non-electronics categories: CompuGhana is an electronics-only retailer, and its
-        // fuzzy product-suggest search will still return SOME "closest match" result for a
-        // query like "sugar" or "slippers" even though it doesn't actually stock that item.
-        try {
-            List<CompuGhanaService.Listing> compuGhanaResults = isElectronicsCategory(gemini.category())
-                    ? compuGhanaService.search(gemini.name()) : List.of();
-            if (!compuGhanaResults.isEmpty()) {
-                CompuGhanaService.Listing best = compuGhanaResults.get(0);
-                GeminiService.ResearchSeller realSeller = new GeminiService.ResearchSeller(
-                    "CompuGhana", best.url(), "Online · Electronics", best.price()
-                );
-                List<GeminiService.ResearchSeller> existing = research != null && research.sellers() != null
-                        ? research.sellers() : List.of();
-                List<GeminiService.ResearchSeller> merged = new ArrayList<>();
-                for (GeminiService.ResearchSeller s : existing) {
-                    if (!"compughana".equalsIgnoreCase(s.name().replace(" ", ""))) {
-                        merged.add(s);
-                    }
-                }
-                merged.add(realSeller);
-
-                double priceTypical = research != null && research.priceTypical() > 0
-                        ? research.priceTypical() : best.price();
-                research = new GeminiService.ProductResearch(
-                        research != null ? research.specs() : Map.of(),
-                        research != null ? research.priceMin() : 0,
-                        research != null ? research.priceMax() : 0,
-                        priceTypical,
-                        merged
-                );
-            }
-        } catch (Exception e) {
-            log.warn("CompuGhana enrichment failed: {}", e.getMessage());
-        }
-
-        // Standard price fallback — not tied to any one store. If priceTypical still came
-        // back 0 (grounded research found sellers but didn't compute an overall typical),
-        // fall back to the lowest real price actually found across every seller.
-        if (research != null && research.priceTypical() <= 0 && research.sellers() != null) {
-            double lowestRealPrice = research.sellers().stream()
-                    .mapToDouble(GeminiService.ResearchSeller::price)
-                    .filter(p -> p > 0)
-                    .min()
-                    .orElse(0);
-            if (lowestRealPrice > 0) {
-                research = new GeminiService.ProductResearch(
-                        research.specs(), research.priceMin(), research.priceMax(),
-                        lowestRealPrice, research.sellers()
-                );
-            }
-        }
+        // Step 2: live cross-check — Gemini grounded search + DuckDuckGo + (for electronics)
+        // CompuGhana's own API. See runLiveResearch() for why each source is there.
+        LiveLookup live = runLiveResearch(gemini.name(), gemini.brand(), gemini.category());
+        GeminiService.ProductResearch research = live.research();
+        DuckDuckGoService.ProductSearch ddgSearch = live.ddgSearch();
 
         // Persist updated specs/price to the product record. Prices are refreshed on every
         // scan (not just when currently 0) so listings stay live as market prices change.
@@ -251,63 +153,33 @@ public class ScanService {
         List<Product> products = productRepository.findByBarcode(barcode);
         Product product;
 
+        double confidence;
         if (!products.isEmpty()) {
             product = products.get(0);
+            confidence = 99.0;
             log.debug("Barcode {} found in local DB: {}", barcode, product.getName());
         } else {
             // 2. Fallback: Open Food Facts API
             log.info("Barcode {} not in local DB — querying Open Food Facts", barcode);
             product = fetchFromOpenFoodFacts(barcode);
+            confidence = 95.0;
+        }
 
-            // 3. Gemini grounded search first (same reasoning as analyzeImage — this is the
-            // only path that can surface a real Jumia price), DuckDuckGo as fallback/extra sellers.
-            DuckDuckGoService.ProductSearch ddgSearch = null;
-            GeminiService.ProductResearch research = null;
-            try {
-                research = geminiService.researchProduct(product.getName(), product.getBrand(), product.getCategory());
-            } catch (Exception e) {
-                log.warn("Gemini grounded research failed for barcode product: {}", e.getMessage());
-            }
-            try {
-                ddgSearch = duckDuckGoService.searchProduct(product.getName(), product.getBrand(), product.getCategory());
-                if (research == null && !ddgSearch.snippets().isEmpty()) {
-                    research = geminiService.researchFromSnippets(
-                        new GeminiService.ProductInfo(product.getName(), product.getBrand(), product.getCategory(), product.getDescription(), 0, null, null),
-                        ddgSearch.snippets()
-                    );
-                }
-                if (research != null && research.priceTypical() > 0) {
-                    product.setPrice(research.priceTypical());
-                } else if (ddgSearch.detectedPrice() > 0) {
-                    product.setPrice(ddgSearch.detectedPrice());
-                }
-                productRepository.save(product);
-            } catch (Exception e) {
-                log.warn("DuckDuckGo search failed for barcode product: {}", e.getMessage());
-                productRepository.save(product);
-            }
-
-            ScanResult saved = scanResultRepository.save(
-                    ScanResult.builder()
-                            .user(user)
-                            .product(product)
-                            .confidence(95.0)
-                            .authenticityStatus(product.getAuthenticity())
-                            .imageUri("barcode:" + barcode)
-                            .build()
-            );
-            user.setScansCount(user.getScansCount() + 1);
-        user.setQuotaScansUsed(user.getQuotaScansUsed() + 1);
-            userRepository.save(user);
-            log.debug("Barcode via OFF — user={} barcode={} product={}", userEmail, barcode, product.getName());
-            return toDto(saved, research, ddgSearch);
+        // 3. Live cross-check every time (not just for a brand-new product) — a repeat scan of
+        // the same barcode should still reflect current prices/sellers, not whatever was cached
+        // from the first time this barcode was ever scanned.
+        LiveLookup live = runLiveResearch(product.getName(), product.getBrand(), product.getCategory());
+        GeminiService.ProductResearch research = live.research();
+        if (research != null && research.priceTypical() > 0) {
+            product.setPrice(research.priceTypical());
+            productRepository.save(product);
         }
 
         ScanResult saved = scanResultRepository.save(
                 ScanResult.builder()
                         .user(user)
                         .product(product)
-                        .confidence(99.0)
+                        .confidence(confidence)
                         .authenticityStatus(product.getAuthenticity())
                         .imageUri("barcode:" + barcode)
                         .build()
@@ -318,7 +190,7 @@ public class ScanService {
         userRepository.save(user);
 
         log.debug("Barcode scan — user={} barcode={} product={}", userEmail, barcode, product.getName());
-        return toDto(saved, null, null);
+        return toDto(saved, research, live.ddgSearch());
     }
 
     /** Fetch product info from Open Food Facts and auto-create it in the local DB. */
@@ -466,56 +338,171 @@ public class ScanService {
         }
     }
 
+    // ── Live cross-check pipeline ────────────────────────────────────────────
+
+    private record LiveLookup(GeminiService.ProductResearch research, DuckDuckGoService.ProductSearch ddgSearch) {}
+
+    /**
+     * Runs the full live seller cross-check for a product: Gemini with real-time Google Search
+     * grounding (the only path that can surface a live Jumia Ghana price — Jumia returns 403 to
+     * direct server-side scraping, see CompuGhanaService's comment on the same issue), DuckDuckGo
+     * as a supplementary source and the fallback research path when grounded search returns
+     * nothing usable, and — for electronics — CompuGhana's own search API for a confirmed live
+     * price rather than a search-snippet guess.
+     *
+     * Every caller of analyzeImage/findByBarcode goes through this single path so the sellers
+     * shown to the user are always this scan's live lookup — toDto() never falls back to a
+     * cached DB/seeded seller record.
+     */
+    private LiveLookup runLiveResearch(String name, String brand, String category) {
+        GeminiService.ProductResearch research = null;
+        try {
+            research = geminiService.researchProduct(name, brand, category);
+        } catch (Exception e) {
+            log.warn("Gemini grounded research failed: {}", e.getMessage());
+        }
+
+        DuckDuckGoService.ProductSearch ddgSearch = null;
+        try {
+            ddgSearch = duckDuckGoService.searchProduct(name, brand, category);
+            if (research == null && !ddgSearch.snippets().isEmpty()) {
+                research = geminiService.researchFromSnippets(
+                    new GeminiService.ProductInfo(name, brand, category, "", 0, null, null),
+                    ddgSearch.snippets()
+                );
+            }
+            if (research == null && ddgSearch.detectedPrice() > 0) {
+                research = new GeminiService.ProductResearch(
+                    Map.of(), 0, 0, ddgSearch.detectedPrice(),
+                    ddgSearch.sellers()
+                );
+            } else if (research != null && ddgSearch.sellers() != null) {
+                // Research's own sellers (from grounded search) take priority — only add a
+                // DDG seller if one under (roughly) the same name isn't already present, so a
+                // real Jumia price from grounded search can't be duplicated or shadowed by a
+                // zero-price DDG placeholder of the same store.
+                List<GeminiService.ResearchSeller> merged = new ArrayList<>(
+                    research.sellers() != null ? research.sellers() : List.of());
+                for (GeminiService.ResearchSeller s : ddgSearch.sellers()) {
+                    if (merged.stream().noneMatch(m -> m.name().equalsIgnoreCase(s.name()))) {
+                        merged.add(s);
+                    }
+                }
+                research = new GeminiService.ProductResearch(
+                    research.specs(), research.priceMin(), research.priceMax(),
+                    research.priceTypical() > 0 ? research.priceTypical() : ddgSearch.detectedPrice(),
+                    merged
+                );
+            }
+        } catch (Exception e) {
+            log.warn("DuckDuckGo product search failed: {}", e.getMessage());
+        }
+
+        // CompuGhana — a real live price, not a search-snippet guess. Replaces the generic
+        // CompuGhana entry DuckDuckGoService adds for every product. Skipped for non-electronics
+        // categories: CompuGhana is an electronics-only retailer, and its fuzzy product-suggest
+        // search will still return SOME "closest match" result for a query like "sugar" or
+        // "slippers" even though it doesn't actually stock that item.
+        try {
+            List<CompuGhanaService.Listing> compuGhanaResults = isElectronicsCategory(category)
+                    ? compuGhanaService.search(name) : List.of();
+            if (!compuGhanaResults.isEmpty()) {
+                CompuGhanaService.Listing best = compuGhanaResults.get(0);
+                GeminiService.ResearchSeller realSeller = new GeminiService.ResearchSeller(
+                    "CompuGhana", best.url(), "Online · Electronics", best.price()
+                );
+                List<GeminiService.ResearchSeller> existing = research != null && research.sellers() != null
+                        ? research.sellers() : List.of();
+                List<GeminiService.ResearchSeller> merged = new ArrayList<>();
+                for (GeminiService.ResearchSeller s : existing) {
+                    if (!"compughana".equalsIgnoreCase(s.name().replace(" ", ""))) {
+                        merged.add(s);
+                    }
+                }
+                merged.add(realSeller);
+
+                double priceTypical = research != null && research.priceTypical() > 0
+                        ? research.priceTypical() : best.price();
+                research = new GeminiService.ProductResearch(
+                        research != null ? research.specs() : Map.of(),
+                        research != null ? research.priceMin() : 0,
+                        research != null ? research.priceMax() : 0,
+                        priceTypical,
+                        merged
+                );
+            }
+        } catch (Exception e) {
+            log.warn("CompuGhana enrichment failed: {}", e.getMessage());
+        }
+
+        // Standard price fallback — not tied to any one store. If priceTypical still came
+        // back 0 (grounded research found sellers but didn't compute an overall typical),
+        // fall back to the lowest real price actually found across every seller.
+        if (research != null && research.priceTypical() <= 0 && research.sellers() != null) {
+            double lowestRealPrice = research.sellers().stream()
+                    .mapToDouble(GeminiService.ResearchSeller::price)
+                    .filter(p -> p > 0)
+                    .min()
+                    .orElse(0);
+            if (lowestRealPrice > 0) {
+                research = new GeminiService.ProductResearch(
+                        research.specs(), research.priceMin(), research.priceMax(),
+                        lowestRealPrice, research.sellers()
+                );
+            }
+        }
+
+        return new LiveLookup(research, ddgSearch);
+    }
+
     // ── DTO mapping ───────────────────────────────────────────────────────────
 
     private ScanResultDto toDto(ScanResult r, GeminiService.ProductResearch research, DuckDuckGoService.ProductSearch ddgSearch) {
         ProductDto base = productService.toDto(r.getProduct());
 
-        ProductDto productDto = base;
-        if (research != null) {
-            // Build dynamic sellers from research
-            List<SellerDto> dynamicSellers = research.sellers().stream()
-                    .filter(s -> s.name() != null && !s.name().isBlank())
-                    .map(s -> SellerDto.builder()
-                            .id(UUID.randomUUID().toString())
-                            .name(s.name())
-                            .location(s.location())
-                            .distance("N/A")
-                            .phone(s.phone() != null ? s.phone() : "")
-                            .whatsapp(s.whatsapp() != null ? s.whatsapp() : "")
-                            .url(s.url() != null && !s.url().isBlank() ? s.url() : null)
-                            // Not a confirmed marketplace listing — AI/web-search-derived, unlike
-                            // the DB-backed `Product`/`Seller` `verified` flags in ProductService.
-                            .verified(false)
-                            .rating(0.0)
-                            .reviewCount(0)
-                            .price(s.price())
-                            .build())
-                    .collect(Collectors.toList());
+        // Sellers shown here are ONLY this scan's live cross-check (Gemini grounded search +
+        // DuckDuckGo + CompuGhana) — never the DB/seeded `Seller`/`InventoryItem` records that
+        // back base.getSellers(), so a demo/seeded listing can never be mistaken for a real,
+        // currently-live one. If the live lookup found nothing, sellers is simply empty.
+        List<SellerDto> liveSellers = (research != null && research.sellers() != null)
+                ? research.sellers().stream()
+                        .filter(s -> s.name() != null && !s.name().isBlank())
+                        .map(s -> SellerDto.builder()
+                                .id(UUID.randomUUID().toString())
+                                .name(s.name())
+                                .location(s.location())
+                                .distance("N/A")
+                                .phone(s.phone() != null ? s.phone() : "")
+                                .whatsapp(s.whatsapp() != null ? s.whatsapp() : "")
+                                .url(s.url() != null && !s.url().isBlank() ? s.url() : null)
+                                // Not a confirmed marketplace listing — AI/web-search-derived, unlike
+                                // the DB-backed `Product`/`Seller` `verified` flags in ProductService.
+                                .verified(false)
+                                .rating(0.0)
+                                .reviewCount(0)
+                                .price(s.price())
+                                .build())
+                        .collect(Collectors.toList())
+                : List.of();
 
-            // Merge: DB sellers first, then dynamic research sellers
-            List<SellerDto> allSellers = new ArrayList<>(base.getSellers());
-            allSellers.addAll(dynamicSellers);
-
-            productDto = ProductDto.builder()
-                    .id(base.getId())
-                    .name(base.getName())
-                    .brand(base.getBrand())
-                    .category(base.getCategory())
-                    .description(base.getDescription())
-                    .imageUrl(base.getImageUrl())
-                    .price(research.priceTypical() > 0 ? research.priceTypical() : base.getPrice())
-                    .currency(base.getCurrency())
-                    .origin(base.getOrigin())
-                    .specs(research.specs() != null && !research.specs().isEmpty()
-                            ? research.specs() : base.getSpecs())
-                    .barcode(base.getBarcode())
-                    .verified(base.isVerified())
-                    .authenticity(base.getAuthenticity())
-                    .sellers(allSellers)
-                    .reportCount(base.getReportCount())
-                    .build();
-        }
+        ProductDto productDto = ProductDto.builder()
+                .id(base.getId())
+                .name(base.getName())
+                .brand(base.getBrand())
+                .category(base.getCategory())
+                .description(base.getDescription())
+                .imageUrl(base.getImageUrl())
+                .price(research != null && research.priceTypical() > 0 ? research.priceTypical() : base.getPrice())
+                .currency(base.getCurrency())
+                .origin(base.getOrigin())
+                .specs(research != null && research.specs() != null && !research.specs().isEmpty()
+                        ? research.specs() : base.getSpecs())
+                .barcode(base.getBarcode())
+                .verified(base.isVerified())
+                .authenticity(base.getAuthenticity())
+                .sellers(liveSellers)
+                .reportCount(base.getReportCount())
+                .build();
 
         return ScanResultDto.builder()
                 .id(r.getId())

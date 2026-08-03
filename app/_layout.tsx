@@ -15,6 +15,7 @@ export default function RootLayout() {
   const user = useAuthStore(s => s.user);
   const loadSaved = useSavedStore(s => s.load);
   const initQuota = useScanStore(s => s.initQuota);
+  const syncPremiumFromServer = useScanStore(s => s.syncPremiumFromServer);
 
   useEffect(() => {
     // Fire-and-forget — wakes a sleeping Render instance early so sign-in/scan
@@ -26,8 +27,11 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    // Requires a signed-in user — the backend endpoint needs a JWT.
-    if (user) registerForPushNotifications();
+    // Both require a signed-in user — the backend endpoints need a JWT.
+    if (user) {
+      registerForPushNotifications();
+      syncPremiumFromServer();
+    }
   }, [user]);
 
   return (
