@@ -31,5 +31,20 @@ public class SchemaFixRunner implements CommandLineRunner {
         } catch (Exception e) {
             log.warn("Could not widen users.avatar_url to TEXT (non-fatal): {}", e.getMessage());
         }
+
+        // Same drift, different table: this CHECK constraint was generated from the
+        // NotificationType enum's members at whatever point it was first created, and never
+        // updated as new enum constants (NEW_SELLER, COMMUNITY, ...) were added later — so a
+        // perfectly valid @Enumerated(STRING) value gets rejected at the DB layer and, worse,
+        // aborts the whole Spring Boot startup if it happens inside a CommandLineRunner. Java's
+        // @Enumerated(EnumType.STRING) already enforces valid values at the application layer,
+        // so the DB-level constraint is redundant and only a liability — drop it for good rather
+        // than re-patch it every time the enum grows.
+        try {
+            jdbcTemplate.execute("ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check");
+            log.info("Dropped stale notifications_type_check constraint (if present)");
+        } catch (Exception e) {
+            log.warn("Could not drop notifications_type_check (non-fatal): {}", e.getMessage());
+        }
     }
 }

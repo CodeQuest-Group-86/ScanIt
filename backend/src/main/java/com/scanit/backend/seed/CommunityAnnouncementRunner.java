@@ -38,11 +38,18 @@ public class CommunityAnnouncementRunner implements CommandLineRunner {
         }
 
         java.util.List<User> users = userRepository.findAll();
-        int pushed = 0;
+        int sent = 0, pushed = 0;
         for (User user : users) {
-            notificationService.notify(user, TITLE, BODY, NotificationType.COMMUNITY);
-            if (user.getPushToken() != null && !user.getPushToken().isBlank()) pushed++;
+            // One user's row failing (bad data, transient DB error, etc.) must never abort
+            // the whole broadcast — or worse, crash app startup, as happened here once already.
+            try {
+                notificationService.notify(user, TITLE, BODY, NotificationType.COMMUNITY);
+                sent++;
+                if (user.getPushToken() != null && !user.getPushToken().isBlank()) pushed++;
+            } catch (Exception e) {
+                log.warn("Community announcement failed for user {}: {}", user.getId(), e.getMessage());
+            }
         }
-        log.info("Community announcement broadcast to {} users ({} with a push token)", users.size(), pushed);
+        log.info("Community announcement broadcast to {}/{} users ({} with a push token)", sent, users.size(), pushed);
     }
 }
