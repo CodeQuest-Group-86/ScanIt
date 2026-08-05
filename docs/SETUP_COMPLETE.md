@@ -62,9 +62,8 @@ Use Expo Go app on your phone to scan the QR code
 Create `.env.local` with:
 ```env
 EXPO_PUBLIC_API_URL=http://localhost:8080/api/v1
-EXPO_PUBLIC_GEMINI_API_KEY=AQ.Ab8RN6KLWu9ZHZhjQD-E-iT5hMfuUxSE01m49U1fDoFm9qF3vg
-EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_74e29f7885f02e0c92e44b0e981dd26fea044376
-EXPO_PUBLIC_PAYSTACK_SECRET_KEY=sk_live_3a4c203545a2e21f973b67f86eea4b3a5062e74a
+EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
+EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_your_public_key_here
 ```
 
 2. **Start the App:**
@@ -84,11 +83,11 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:8080/api/v1  # Android emulator
 # EXPO_PUBLIC_API_URL=http://192.168.1.XXX:8080/api/v1  # Physical device
 
 # Gemini AI API Key
-EXPO_PUBLIC_GEMINI_API_KEY=AQ.Ab8RN6KLWu9ZHZhjQD-E-iT5hMfuUxSE01m49U1fDoFm9qF3vg
+EXPO_PUBLIC_GEMINI_API_KEY=your_gemini_api_key_here
 
-# Paystack Configuration
-EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_live_74e29f7885f02e0c92e44b0e981dd26fea044376
-EXPO_PUBLIC_PAYSTACK_SECRET_KEY=sk_live_3a4c203545a2e21f973b67f86eea4b3a5062e74a
+# Paystack Configuration — PUBLIC key only; the secret key belongs on the backend
+# as PAYSTACK_SECRET_KEY, never in a client env file (anything EXPO_PUBLIC_ ships in the APK)
+EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY=pk_test_your_public_key_here
 ```
 
 ### Scan Limit System
