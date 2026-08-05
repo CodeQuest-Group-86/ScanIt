@@ -11,4 +11,5 @@ import java.util.List;
 public interface NotificationRepository extends JpaRepository<Notification, String> {
     List<Notification> findByUserOrderByTimestampDesc(User user);
     long countByUserAndReadFalse(User user);
+    boolean existsByTitle(String title);
 }
