@@ -100,7 +100,6 @@ export default function SignUpScreen() {
         phone: phone.trim(),
         password,
         role,
-        devCode: res.data?.devCode ?? "",
       },
     });
   };

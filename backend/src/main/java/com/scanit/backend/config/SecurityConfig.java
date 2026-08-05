@@ -51,6 +51,9 @@ public class SecurityConfig {
                                          "/auth/oauth/google", "/auth/otp/**").permitAll()
                         // Health check (Railway / Docker)
                         .requestMatchers("/actuator/health").permitAll()
+                        // Paystack webhook — unauthenticated by nature (no JWT from Paystack);
+                        // PaymentController verifies the HMAC signature itself before trusting it.
+                        .requestMatchers("/payments/webhook").permitAll()
                         // H2 console (dev only)
                         .requestMatchers("/h2-console/**").permitAll()
                         // Static assets embedded in outbound emails (e.g. the OTP email logo) —

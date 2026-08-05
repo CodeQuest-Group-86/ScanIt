@@ -18,10 +18,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -101,34 +106,107 @@ public class PaymentService {
             throw new BadRequestException("This payment was not made by the signed-in account.");
         }
 
+        activate(user, req.getPlanId(), plan, req.getReference());
+        log.info("Subscription activated for {} — plan={} reference={}", userEmail, req.getPlanId(), req.getReference());
+        return toDto(user);
+    }
+
+    private void activate(User user, String planId, PlanSpec plan, String reference) {
         user.setSubscriptionActive(true);
-        user.setSubscriptionPlan(req.getPlanId());
+        user.setSubscriptionPlan(planId);
         user.setSubscriptionExpiresAt(Instant.now().plus(plan.durationDays(), ChronoUnit.DAYS));
-        user.setLastPaymentReference(req.getReference());
+        user.setLastPaymentReference(reference);
         user.setQuotaScansUsed(0);
         userRepository.save(user);
 
         notificationService.notify(
                 user,
                 "Welcome to Premium!",
-                "Your " + req.getPlanId().replace("_", " ") + " subscription is active. Enjoy your scans!",
+                "Your " + planId.replace("_", " ") + " subscription is active. Enjoy your scans!",
                 NotificationType.SYSTEM
         );
 
         try {
             emailService.send(
-                    userEmail,
+                    user.getEmail(),
                     "Payment received — welcome to ScanIt Premium!",
-                    buildPremiumWelcomeEmailHtml(req.getPlanId(), plan, user.getSubscriptionExpiresAt())
+                    buildPremiumWelcomeEmailHtml(planId, plan, user.getSubscriptionExpiresAt())
             );
         } catch (Exception e) {
             // The payment already succeeded and the subscription is active — a failed
             // receipt email is logged, not allowed to undo or fail the activation.
-            log.error("Failed to send premium welcome email to {}: {}", userEmail, e.getMessage());
+            log.error("Failed to send premium welcome email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    // ── Webhook (Paystack → backend push, backs up the client-triggered /verify call) ──────────
+
+    /** HMAC-SHA512 of the raw request body, keyed with the Paystack secret key — see
+     *  https://paystack.com/docs/payments/webhooks/#verify-events-are-from-paystack */
+    public boolean verifyWebhookSignature(String rawBody, String signatureHeader) {
+        if (signatureHeader == null || signatureHeader.isBlank() || paystackSecretKey.isBlank() || rawBody == null) {
+            return false;
+        }
+        try {
+            Mac mac = Mac.getInstance("HmacSHA512");
+            mac.init(new SecretKeySpec(paystackSecretKey.getBytes(StandardCharsets.UTF_8), "HmacSHA512"));
+            String computed = HexFormat.of().formatHex(mac.doFinal(rawBody.getBytes(StandardCharsets.UTF_8)));
+            return MessageDigest.isEqual(
+                    computed.getBytes(StandardCharsets.UTF_8),
+                    signatureHeader.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8)
+            );
+        } catch (Exception e) {
+            log.error("Webhook signature check failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** Caller must verify the signature first — this trusts the payload once called. */
+    @Transactional
+    public void handleWebhookEvent(String rawBody) {
+        JsonNode payload;
+        try {
+            payload = mapper.readTree(rawBody);
+        } catch (java.io.IOException e) {
+            log.warn("Webhook payload was not valid JSON");
+            return;
         }
 
-        log.info("Subscription activated for {} — plan={} reference={}", userEmail, req.getPlanId(), req.getReference());
-        return toDto(user);
+        if (!"charge.success".equals(payload.path("event").asText(""))) {
+            return; // only subscription charges concern us; ignore transfer/refund/etc events
+        }
+
+        JsonNode data = payload.path("data");
+        if (!"success".equals(data.path("status").asText(""))) return;
+
+        String reference = data.path("reference").asText("");
+        String payerEmail = data.path("customer").path("email").asText("");
+        if (reference.isBlank() || payerEmail.isBlank()) {
+            log.warn("Webhook charge.success missing reference or customer email");
+            return;
+        }
+
+        User user = userRepository.findByEmail(payerEmail).orElse(null);
+        if (user == null) {
+            log.warn("Webhook charge.success for unknown email={} reference={}", payerEmail, reference);
+            return;
+        }
+
+        // Idempotent: the client's own /verify call for this same reference likely already fired.
+        if (reference.equals(user.getLastPaymentReference())) return;
+
+        int amount = data.path("amount").asInt(0);
+        var planEntry = PLANS.entrySet().stream()
+                .filter(e -> e.getValue().amountPesewas() == amount)
+                .findFirst()
+                .orElse(null);
+        if (planEntry == null) {
+            log.warn("Webhook charge.success amount {} matches no known plan (reference={})", amount, reference);
+            return;
+        }
+
+        activate(user, planEntry.getKey(), planEntry.getValue(), reference);
+        log.info("Subscription activated via webhook for {} — plan={} reference={}", payerEmail, planEntry.getKey(), reference);
     }
 
     @Transactional(readOnly = true)

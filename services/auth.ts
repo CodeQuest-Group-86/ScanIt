@@ -21,6 +21,12 @@ function mapTokens(d: BackendAuthResponse): AuthTokens {
   return { accessToken: d.accessToken, refreshToken: d.refreshToken, expiresAt: d.expiresAt };
 }
 
+/** api.ts prefixes HTTP errors as "400: message" — strip that for UI copy. */
+function stripStatusPrefix(message?: string): string {
+  if (!message) return '';
+  return message.replace(/^\d{3}:\s*/, '').trim();
+}
+
 export const authService = {
   async login(payload: LoginPayload): Promise<ApiResponse<{ user: User; tokens: AuthTokens }>> {
     try {
@@ -31,25 +37,8 @@ export const authService = {
       );
       return { success: true, data: { user: data.user, tokens: mapTokens(data) } };
     } catch (e: any) {
-      // Fallback for development without backend
-      console.warn('Backend not available, using mock login:', e.message);
-      const mockUser: User = {
-        id: 'mock-user-1',
-        name: 'Demo User',
-        email: payload.email,
-        phoneNumber: '+233200000000',
-        role: 'consumer',
-        scansCount: 0,
-        savedCount: 0,
-        totalSaved: 0,
-        createdAt: new Date().toISOString(),
-      };
-      const mockTokens: AuthTokens = {
-        accessToken: 'mock-access-token-' + Date.now(),
-        refreshToken: 'mock-refresh-token-' + Date.now(),
-        expiresAt: Date.now() + 3600000,
-      };
-      return { success: true, data: { user: mockUser, tokens: mockTokens } };
+      const message = stripStatusPrefix(e?.message) || 'Login failed. Please try again.';
+      return { success: false, message, data: null as never };
     }
   },
 
@@ -68,25 +57,8 @@ export const authService = {
       );
       return { success: true, data: { user: data.user, tokens: mapTokens(data) } };
     } catch (e: any) {
-      // Fallback for development without backend
-      console.warn('Backend not available, using mock sign-up:', e.message);
-      const mockUser: User = {
-        id: 'mock-user-' + Date.now(),
-        name: payload.name,
-        email: payload.email,
-        phoneNumber: payload.phoneNumber || '',
-        role: payload.role,
-        scansCount: 0,
-        savedCount: 0,
-        totalSaved: 0,
-        createdAt: new Date().toISOString(),
-      };
-      const mockTokens: AuthTokens = {
-        accessToken: 'mock-access-token-' + Date.now(),
-        refreshToken: 'mock-refresh-token-' + Date.now(),
-        expiresAt: Date.now() + 3600000,
-      };
-      return { success: true, data: { user: mockUser, tokens: mockTokens } };
+      const message = stripStatusPrefix(e?.message) || 'Account creation failed. Please try again.';
+      return { success: false, message, data: null as never };
     }
   },
 
@@ -141,37 +113,30 @@ export const authService = {
 
   /**
    * Request a 6-digit OTP sent via email (Resend) or SMS (Twilio Verify).
-   * The backend handles the actual delivery — this just triggers it.
+   * The backend delivers the code — the client never receives it.
    */
-  async sendOtp(payload: SendOtpPayload): Promise<ApiResponse<{ devCode?: string }>> {
+  async sendOtp(payload: SendOtpPayload): Promise<ApiResponse<null>> {
     try {
-      const data = await api.post<{ devCode?: string }>('/auth/otp/send', payload, { skipAuth: true });
-      return { success: true, data: data ?? {} };
+      await api.post('/auth/otp/send', payload, { skipAuth: true });
+      return { success: true, message: 'OTP sent', data: null };
     } catch (e: any) {
-      // Fallback for development without backend
-      console.warn('Backend not available, using mock OTP send:', e.message);
-      const devCode = '123456'; // Mock OTP code
-      return { success: true, message: 'OTP sent (dev mode)', data: { devCode } };
+      const message = stripStatusPrefix(e?.message) || 'Failed to send verification code. Please try again.';
+      return { success: false, message, data: null };
     }
   },
 
   /**
-   * Verify the 6-digit OTP entered by the user.
+   * Verify the 6-digit OTP the user received by email/SMS.
    * On success the backend returns a short-lived resetToken (for password reset)
    * or marks the account as verified (for sign-up).
    */
   async verifyOtp(payload: VerifyOtpPayload): Promise<ApiResponse<{ resetToken?: string }>> {
     try {
       const data = await api.post<{ resetToken?: string }>('/auth/otp/verify', payload, { skipAuth: true });
-      return { success: true, data };
+      return { success: true, data: data ?? {} };
     } catch (e: any) {
-      // Fallback for development without backend
-      console.warn('Backend not available, using mock OTP verify:', e.message);
-      if (payload.code === '123456') {
-        const resetToken = payload.purpose === 'reset-password' ? 'mock-reset-token-' + Date.now() : undefined;
-        return { success: true, message: 'OTP verified', data: { resetToken } };
-      }
-      return { success: false, message: 'Invalid OTP (use 123456 in dev mode)', data: null as never };
+      const message = stripStatusPrefix(e?.message) || 'Invalid or expired code';
+      return { success: false, message, data: null as never };
     }
   },
 

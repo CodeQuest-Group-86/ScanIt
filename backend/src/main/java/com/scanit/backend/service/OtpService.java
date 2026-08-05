@@ -41,10 +41,10 @@ public class OtpService {
     // ── Send OTP ──────────────────────────────────────────────────────────────
 
     /**
-     * Returns the OTP code only in dev mode (when Twilio/Resend not configured),
-     * so the frontend can pre-fill it. Returns null when a real provider is used.
+     * Generates a 6-digit OTP and delivers it via email (Resend) or SMS (Twilio).
+     * The code is never returned to the client — the user must read it from their inbox/phone.
      */
-    public String send(SendOtpRequest req) {
+    public void send(SendOtpRequest req) {
         String contact = req.getContact();
         String channel = req.getChannel();
         String purpose = req.getPurpose();
@@ -52,9 +52,9 @@ public class OtpService {
         User user = findOrCreatePlaceholder(contact, channel, purpose);
 
         if ("sms".equalsIgnoreCase(channel)) {
-            return sendViaTwilio(contact, user, purpose);
+            sendViaTwilio(contact, user, purpose);
         } else {
-            return sendViaResend(contact, user, purpose);
+            sendViaResend(contact, user, purpose);
         }
     }
 
@@ -131,21 +131,21 @@ public class OtpService {
 
     // ── Twilio Verify ─────────────────────────────────────────────────────────
 
-    private String sendViaTwilio(String phone, User user, String purpose) {
+    private void sendViaTwilio(String phone, User user, String purpose) {
         if (!hasTwilio()) {
-            saveLocalOtp(user, purpose);
-            String code = user.getOtpCode();
-            log.warn("Twilio not configured — dev OTP for {}: {}", phone, code);
-            return code; // returned to frontend for dev pre-fill
+            throw new BadRequestException(
+                    "SMS verification is not available right now. Please use email instead.");
         }
         try {
             Twilio.init(twilioAccountSid, twilioAuthToken);
             Verification.creator(twilioServiceSid, phone, "sms").create();
+            // Marker only — actual code lives in Twilio Verify, not our DB
             user.setOtpCode("twilio");
             user.setOtpExpiry(Instant.now().plusSeconds(OTP_TTL_SECONDS));
             user.setOtpPurpose(purpose);
             userRepository.save(user);
-            return null;
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Twilio send failed for {}: {}", phone, e.getMessage());
             throw new BadRequestException("Failed to send SMS. Check the phone number and try again.");
@@ -167,14 +167,15 @@ public class OtpService {
 
     // ── Resend email ──────────────────────────────────────────────────────────
 
-    private String sendViaResend(String email, User user, String purpose) {
+    private void sendViaResend(String email, User user, String purpose) {
+        if (!emailService.isConfigured()) {
+            log.error("Resend not configured — cannot send OTP email to {}", email);
+            throw new BadRequestException(
+                    "Email verification is temporarily unavailable. Please try again later.");
+        }
+
         String code = generateCode();
         saveLocalOtp(user, purpose, code);
-
-        if (!emailService.isConfigured()) {
-            log.warn("Resend not configured — dev OTP for {}: {}", email, code);
-            return code; // returned to frontend for dev pre-fill
-        }
 
         boolean isSignup = "signup".equals(purpose);
         String subject = isSignup ? "Your ScanIt verification code" : "Reset your ScanIt password";
@@ -182,8 +183,17 @@ public class OtpService {
                 ? "Enter this code to verify your email and finish creating your account."
                 : "Enter this code to reset your ScanIt password.";
 
-        emailService.send(email, subject, buildOtpEmailHtml(intro, code));
-        return null;
+        try {
+            emailService.send(email, subject, buildOtpEmailHtml(intro, code));
+            log.info("OTP email sent to {} (purpose={})", email, purpose);
+        } catch (BadRequestException e) {
+            // Don't leave a usable OTP if delivery failed
+            user.setOtpCode(null);
+            user.setOtpExpiry(null);
+            user.setOtpPurpose(null);
+            userRepository.save(user);
+            throw e;
+        }
     }
 
     private String buildOtpEmailHtml(String intro, String code) {
@@ -220,19 +230,11 @@ public class OtpService {
         return String.format("%06d", new SecureRandom().nextInt(1_000_000));
     }
 
-    private void saveLocalOtp(User user, String purpose) {
-        saveLocalOtp(user, purpose, generateCode());
-    }
-
     private void saveLocalOtp(User user, String purpose, String code) {
         user.setOtpCode(code);
         user.setOtpExpiry(Instant.now().plusSeconds(OTP_TTL_SECONDS));
         user.setOtpPurpose(purpose);
         userRepository.save(user);
-    }
-
-    private String purpose(User user) {
-        return user.getOtpPurpose() != null ? user.getOtpPurpose() : "";
     }
 
     private String inferChannel(String contact) {

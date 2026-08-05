@@ -1,5 +1,7 @@
 /**
  * app/(auth)/verify-otp.tsx
+ *
+ * User must enter the 6-digit code from their email/SMS — never pre-filled.
  */
 
 import Button from '@/components/Button';
@@ -12,7 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
+import Animated, { ZoomIn } from 'react-native-reanimated';
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 60;
@@ -27,19 +29,16 @@ export default function VerifyOtpScreen() {
     phone?: string;
     password?: string;
     role?: string;
-    devCode?: string;
   }>();
 
   const { contact, channel, purpose } = params;
-  const devCode = params.devCode && params.devCode.length === OTP_LENGTH ? params.devCode : '';
 
-  const [digits, setDigits] = useState<string[]>(
-    devCode ? devCode.split('') : Array(OTP_LENGTH).fill(''),
-  );
+  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(RESEND_SECONDS);
   const [otpVerified, setOtpVerified] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
 
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const { signUp } = useAuthStore();
@@ -50,10 +49,28 @@ export default function VerifyOtpScreen() {
     return () => clearTimeout(t);
   }, [resendTimer]);
 
+  // Focus first empty box on mount so the user can start typing immediately
+  useEffect(() => {
+    const t = setTimeout(() => inputRefs.current[0]?.focus(), 300);
+    return () => clearTimeout(t);
+  }, []);
+
   const code = digits.join('');
 
   const handleChange = (text: string, index: number) => {
-    const digit = text.replace(/\D/g, '').slice(-1);
+    // Support paste of full 6-digit code into any box
+    const cleaned = text.replace(/\D/g, '');
+    if (cleaned.length > 1) {
+      const next = Array(OTP_LENGTH).fill('');
+      cleaned.slice(0, OTP_LENGTH).split('').forEach((d, i) => { next[i] = d; });
+      setDigits(next);
+      setError('');
+      const focusAt = Math.min(cleaned.length, OTP_LENGTH) - 1;
+      inputRefs.current[focusAt]?.focus();
+      return;
+    }
+
+    const digit = cleaned.slice(-1);
     const next = [...digits];
     next[index] = digit;
     setDigits(next);
@@ -68,13 +85,22 @@ export default function VerifyOtpScreen() {
   };
 
   const handleResend = async () => {
-    setResendTimer(RESEND_SECONDS);
+    if (resendLoading) return;
+    setResendLoading(true);
     setError('');
     setOtpVerified(false);
+    setDigits(Array(OTP_LENGTH).fill(''));
+
     const res = await authService.sendOtp({ contact, channel, purpose });
-    if (res.success && res.data?.devCode) {
-      setDigits(res.data.devCode.split(''));
+    setResendLoading(false);
+
+    if (!res.success) {
+      setError(res.message ?? 'Failed to resend code. Please try again.');
+      return;
     }
+
+    setResendTimer(RESEND_SECONDS);
+    inputRefs.current[0]?.focus();
   };
 
   const handleVerify = async () => {
@@ -120,16 +146,18 @@ export default function VerifyOtpScreen() {
       if (storeErr.toLowerCase().includes('already exists')) {
         setError('This email is already registered. Please sign in instead.');
       } else {
-        setError('Account creation failed. Please try again.');
+        setError(storeErr || 'Account creation failed. Please try again.');
       }
     }
   };
+
+  const channelLabel = channel === 'sms' ? 'phone' : 'email';
 
   return (
     <AuthScreenLayout
       lottie="auth-verify"
       title="Enter verification code"
-      subtitle={`We sent a 6-digit code to ${contact}`}
+      subtitle={`We sent a 6-digit code to your ${channelLabel}: ${contact}`}
       compact
       headerExtra={
         <TouchableOpacity onPress={() => router.back()} style={styles.back}>
@@ -138,13 +166,6 @@ export default function VerifyOtpScreen() {
         </TouchableOpacity>
       }
     >
-      {devCode ? (
-        <Animated.View entering={FadeIn} style={styles.devBanner}>
-          <Ionicons name="code-slash-outline" size={14} color={Colors.accent} />
-          <Text style={styles.devBannerText}>Dev mode — code pre-filled: {devCode}</Text>
-        </Animated.View>
-      ) : null}
-
       <View style={styles.otpRow}>
         {digits.map((d, i) => (
           <Animated.View key={i} entering={ZoomIn.delay(i * 45).springify().damping(14)}>
@@ -155,8 +176,11 @@ export default function VerifyOtpScreen() {
               onChangeText={t => handleChange(t, i)}
               onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, i)}
               keyboardType="number-pad"
-              maxLength={1}
+              maxLength={i === 0 ? OTP_LENGTH : 1}
               selectTextOnFocus
+              textContentType="none"
+              autoComplete="off"
+              importantForAutofill="no"
               accessible
               accessibilityLabel={`Digit ${i + 1}`}
             />
@@ -180,8 +204,10 @@ export default function VerifyOtpScreen() {
         {resendTimer > 0 ? (
           <Text style={styles.timerText}>Resend in {resendTimer}s</Text>
         ) : (
-          <TouchableOpacity onPress={handleResend}>
-            <Text style={styles.resendLink}>Resend code</Text>
+          <TouchableOpacity onPress={handleResend} disabled={resendLoading}>
+            <Text style={styles.resendLink}>
+              {resendLoading ? 'Sending…' : 'Resend code'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
@@ -205,15 +231,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: Typography.weights.medium,
   },
-  devBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    backgroundColor: Colors.accent + '18',
-    borderRadius: Radii.md,
-    padding: Spacing.sm,
-  },
-  devBannerText: { fontSize: Typography.sizes.sm, color: Colors.accent, fontWeight: Typography.weights.medium },
   otpRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.sm },
   otpBox: {
     width: 44,

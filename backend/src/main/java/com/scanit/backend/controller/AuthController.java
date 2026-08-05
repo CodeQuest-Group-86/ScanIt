@@ -64,17 +64,11 @@ public class AuthController {
     // ── OTP endpoints ─────────────────────────────────────────────────────────
 
     /** Step 1 — send a 6-digit OTP via SMS (Twilio Verify) or email (Resend).
-     *  In dev mode (no provider configured), returns { devCode } so the app can pre-fill it. */
+     *  The code is delivered only to the user's contact — never returned in the response. */
     @PostMapping("/otp/send")
-    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> sendOtp(@Valid @RequestBody SendOtpRequest req) {
-        String devCode = otpService.send(req);
-        java.util.Map<String, String> data = devCode != null
-                ? java.util.Map.of("devCode", devCode)
-                : java.util.Map.of();
-        String msg = devCode != null
-                ? "OTP sent (dev mode — code: " + devCode + ")"
-                : "OTP sent";
-        return ResponseEntity.ok(ApiResponse.success(msg, data));
+    public ResponseEntity<ApiResponse<Void>> sendOtp(@Valid @RequestBody SendOtpRequest req) {
+        otpService.send(req);
+        return ResponseEntity.ok(ApiResponse.success("OTP sent. Check your email or phone.", null));
     }
 
     /** Step 2 — verify the code. Returns resetToken for reset-password purpose. */

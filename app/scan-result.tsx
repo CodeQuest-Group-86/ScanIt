@@ -443,9 +443,16 @@ export default function ScanResultScreen() {
               <Text style={styles.sectionHint}>
                 Opens Google Search in your browser
               </Text>
-              {product.sellers.map((s) => (
-                <SellerRow key={s.id} seller={s} currency={product.currency} />
-              ))}
+              {product.sellers.map((s, index) => {
+                console.log("Rendering seller:", s);
+                return (
+                  <SellerRow
+                    key={index}
+                    seller={s}
+                    currency={product.currency}
+                  />
+                );
+              })}
             </ReanimatedView.View>
           ) : (
             !offlineMode && (

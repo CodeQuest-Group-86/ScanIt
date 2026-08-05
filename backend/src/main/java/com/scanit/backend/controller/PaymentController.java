@@ -37,4 +37,21 @@ public class PaymentController {
         paymentService.cancel(authentication.getName());
         return ResponseEntity.ok(ApiResponse.success("Subscription cancelled", null));
     }
+
+    /**
+     * Paystack server-to-server push, backing up the client-triggered /verify call for cases
+     * where the app closes before that fires. Unauthenticated by design (Paystack sends no JWT) —
+     * trust comes entirely from the HMAC signature, not from Spring Security.
+     */
+    @PostMapping("/webhook")
+    public ResponseEntity<Void> webhook(
+            @RequestBody String rawBody,
+            @RequestHeader(value = "x-paystack-signature", required = false) String signature
+    ) {
+        if (!paymentService.verifyWebhookSignature(rawBody, signature)) {
+            return ResponseEntity.status(401).build();
+        }
+        paymentService.handleWebhookEvent(rawBody);
+        return ResponseEntity.ok().build();
+    }
 }
