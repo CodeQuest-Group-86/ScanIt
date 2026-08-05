@@ -1,5 +1,5 @@
-export function formatPrice(amount: number, currency = '₵'): string {
-  return `${currency}${amount.toFixed(2)}`;
+export function formatPrice(amount: number, currency = 'GHS'): string {
+  return `${currency} ${amount.toFixed(2)}`;
 }
 
 export function formatGHPrice(amount: number): string {
