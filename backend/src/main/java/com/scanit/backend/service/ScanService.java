@@ -286,10 +286,15 @@ public class ScanService {
 
         String name = gemini.name();
         String brand = gemini.brand();
+        // "Unknown"/blank isn't a real brand — matching on it as an OR-clause would collide
+        // every no-visible-brand scan (the majority) into whichever such product was created
+        // first, regardless of whether the name matches at all.
+        boolean hasRealBrand = brand != null && !brand.isBlank() && !brand.equalsIgnoreCase("Unknown");
 
-        // 1. Try exact name+brand match
-        List<Product> exact = productRepository
-                .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(name, brand);
+        // 1. Try exact name(+brand, only when brand is real) match
+        List<Product> exact = hasRealBrand
+                ? productRepository.findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(name, brand)
+                : productRepository.findByNameContainingIgnoreCase(name);
         if (!exact.isEmpty()) {
             log.debug("Gemini label '{}' matched existing product '{}'", name, exact.get(0).getName());
             return new MatchResult(exact.get(0), false);
@@ -298,8 +303,7 @@ public class ScanService {
         // 2. Try individual words from the product name
         for (String word : name.split("[\\s,_\\-]+")) {
             if (word.length() > 3) {
-                List<Product> byWord = productRepository
-                        .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCase(word, word);
+                List<Product> byWord = productRepository.findByNameContainingIgnoreCase(word);
                 if (!byWord.isEmpty()) {
                     log.debug("Word '{}' matched existing product '{}'", word, byWord.get(0).getName());
                     return new MatchResult(byWord.get(0), false);
