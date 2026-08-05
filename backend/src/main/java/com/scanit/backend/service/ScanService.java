@@ -466,7 +466,10 @@ public class ScanService {
         // currently-live one. If the live lookup found nothing, sellers is simply empty.
         List<SellerDto> liveSellers = (research != null && research.sellers() != null)
                 ? research.sellers().stream()
-                        .filter(s -> s.name() != null && !s.name().isBlank())
+                        // Only stores with a confirmed real price actually carry the product —
+                        // a 0/unknown price means the source (AI guess, DDG placeholder, etc.)
+                        // never verified this store stocks it, so don't show it as a seller.
+                        .filter(s -> s.name() != null && !s.name().isBlank() && s.price() > 0)
                         .map(s -> SellerDto.builder()
                                 .id(UUID.randomUUID().toString())
                                 .name(s.name())

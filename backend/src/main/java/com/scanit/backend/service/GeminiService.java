@@ -281,15 +281,14 @@ public class GeminiService {
     private String requiredSellersBlock(String category, String encodedName) {
         return switch (categoryBucket(category)) {
             case "electronics" -> "" +
-                "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
-                "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n";
+                "- If (and only if) you found a real, currently-listed price on Jumia Ghana, include it: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- Same for Kikuu Ghana — only include it if you found a real listing with a real price.\n";
             case "grocery" -> "" +
-                "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- If (and only if) you found a real, currently-listed price on Jumia Ghana, include it: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
                 "- Include real supermarket/local-market sellers you actually found (Melcom, MaxMart, Makola Market, Kejetia Market, etc.) — never invent one you didn't verify sells this item\n";
             default -> "" +
-                "- Always include a Jumia Ghana entry: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found on Jumia, or 0 only if you genuinely found no listing>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
-                "- Always include: {\"name\":\"Kikuu Ghana\",\"url\":\"https://www.kikuu.com/catalog/search/?q=" + encodedName + "\",\"location\":\"Online · Budget Import\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
-                "- Always include: {\"name\":\"Tonaton Ghana\",\"url\":\"https://tonaton.com/en_GH/search?q=" + encodedName + "\",\"location\":\"Online · Classifieds\",\"price\":<real price found, or 0>,\"phone\":\"\",\"whatsapp\":\"\"}\n";
+                "- If (and only if) you found a real, currently-listed price on Jumia Ghana, include it: {\"name\":\"Jumia Ghana\",\"url\":\"https://www.jumia.com.gh/catalog/?q=" + encodedName + "\",\"location\":\"Online · Nationwide\",\"price\":<the real price you found>,\"phone\":\"\",\"whatsapp\":\"\"}\n" +
+                "- Same for Kikuu Ghana and Tonaton Ghana — only include either if you found a real listing with a real price.\n";
         };
     }
 
@@ -329,7 +328,7 @@ public class GeminiService {
             requiredSellersBlock(category, encodedName) +
             "- specs: include EVERY spec you can find — 6-15 attributes minimum\n" +
             "- All price values must be plain numbers (no currency symbols)\n" +
-            "- Only set a seller's price to 0 if you genuinely could not find one after searching — do not default to 0 out of caution\n" +
+            "- Never include a seller with price 0 or unknown — if you can't confirm a real price for a store, leave that store out entirely rather than listing it at 0\n" +
             "- phone/whatsapp: empty string is the correct, expected answer most of the time — only fill these in when genuinely confident";
 
         Map<String, Object> reqMap = new HashMap<>();
